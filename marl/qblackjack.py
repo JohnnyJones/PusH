@@ -117,13 +117,8 @@ def viz(Q, env_args, viz_episodes=10):
 
         # Episode loop
         while True:
-
-            # Choose the best action if it exists
-            if np.max(Q[s]) > 0:
-                a = np.argmax(Q[s])
-            # Or pick action at random
-            else:
-                a = env.action_space.sample()
+            # Choose the best action
+            a = np.argmax(Q[s])
 
             # Take action, get new state
             s1, r, terminated, truncated, _ = env.step(a)
@@ -166,7 +161,6 @@ if __name__ == "__main__":
     Q, j_list, r_list = train(env_args, train_episodes=train_episodes)
     wins, draws, losses, rewards = eval(Q, env_args, eval_episodes)
     if args.viz:
-        print("Visualization")
         viz(Q, env_args)
     
     print(f"Overall win rate: {wins/eval_episodes*100:.2f}%")
