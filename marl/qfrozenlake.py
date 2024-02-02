@@ -4,14 +4,14 @@ import numpy as np
 import argparse
 
 
-def train(env_args, y=0.9, lr=0.3, e=1.0, train_episodes=2000):
+def train(env_args, y=0.99, lr=0.6, e=1.0, train_episodes=2000):
     env = gym.make('FrozenLake-v1', **env_args)
     env = TimeLimit(env, max_episode_steps=100)
     env.reset()
 
     # Initialize the Q-table
     Q = np.zeros([env.observation_space.n, env.action_space.n])
-    
+
     # Record the rewards and steps
     j_list = []
     r_list = []

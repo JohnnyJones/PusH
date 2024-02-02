@@ -153,8 +153,8 @@ if __name__ == "__main__":
     }
 
     # Lengths of training and eval
-    train_episodes = 20000
-    eval_episodes = 10000
+    train_episodes = 2000
+    eval_episodes = 1000
     viz_episodes = 10
 
     # Train, eval, and visualize
