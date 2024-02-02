@@ -2,8 +2,9 @@ import gymnasium as gym
 from gymnasium.wrappers import TimeLimit
 import numpy as np
 import argparse
+from tqdm import tqdm
 
-def train(env_args, y=0.9, lr=0.3, e=1.0, num_episodes=2000):
+def train(env_args, y=0.55, lr=0.36, train_episodes=2000):
     # Create the environment
     env = gym.make('Blackjack-v1', **env_args)
     env.reset()
@@ -16,8 +17,12 @@ def train(env_args, y=0.9, lr=0.3, e=1.0, num_episodes=2000):
     j_list = []
     r_list = []
 
+    # Epsilon
+    e = 1.0
+    decay = 1.0 / train_episodes
+
     # Train the agent
-    for i in range(num_episodes):
+    for i in range(train_episodes):
         s, _ = env.reset()
         r_total = 0
         j = 0
@@ -49,6 +54,9 @@ def train(env_args, y=0.9, lr=0.3, e=1.0, num_episodes=2000):
 
             if terminated or truncated:
                 break
+        
+        # Decay epsilon
+        e -= decay
 
         j_list.append(j)
         r_list.append(r_total)
@@ -150,14 +158,15 @@ if __name__ == "__main__":
     }
 
     # Lengths of training and eval
-    train_episodes = 2000
-    eval_episodes = 1000
+    train_episodes = 20000
+    eval_episodes = 10000
     viz_episodes = 10
 
     # Train, eval, and visualize
-    Q, j_list, r_list = train(env_args)
+    Q, j_list, r_list = train(env_args, train_episodes=train_episodes)
     wins, draws, losses, rewards = eval(Q, env_args, eval_episodes)
     if args.viz:
+        print("Visualization")
         viz(Q, env_args)
     
     print(f"Overall win rate: {wins/eval_episodes*100:.2f}%")

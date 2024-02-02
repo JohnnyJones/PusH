@@ -11,13 +11,14 @@ def train(env_args, y=0.9, lr=0.3, e=1.0, train_episodes=2000):
 
     # Initialize the Q-table
     Q = np.zeros([env.observation_space.n, env.action_space.n])
-    if args.show_qtable:
-        print("Q-table before:")
-        print(Q)
-
+    
     # Record the rewards and steps
     j_list = []
     r_list = []
+
+    # Epsilon
+    e = 1.0
+    decay = 1.0 / train_episodes
 
     # Train the agent
     for i in range(train_episodes):
@@ -30,7 +31,7 @@ def train(env_args, y=0.9, lr=0.3, e=1.0, train_episodes=2000):
             j += 1
 
             # Explore or choose action with epsilon linear decay
-            if np.random.rand() < e - 1.0 / train_episodes:
+            if np.random.rand() < e:
                 a = env.action_space.sample()
             else:
                 # Choose the best action if it exists
@@ -52,6 +53,9 @@ def train(env_args, y=0.9, lr=0.3, e=1.0, train_episodes=2000):
 
             if terminated or truncated:
                 break
+
+        # Decay epsilon
+        e -= decay
 
         j_list.append(j)
         r_list.append(r_total)
@@ -149,7 +153,7 @@ if __name__ == "__main__":
     }
 
     # Lengths of training and evaluation
-    train_episodes = 2000
+    train_episodes = 20000
     eval_episodes = 1000
     viz_episodes = 10
     
