@@ -63,6 +63,7 @@ def train(env_args, y=0.9, lr=0.3, e=1.0, train_episodes=2000):
 
 def eval(Q, env_args, eval_episodes=1000):
     env = gym.make('FrozenLake-v1', **env_args)
+    env = TimeLimit(env, max_episode_steps=100)
     env.reset()
     eval_episodes = 1000
     wins = 0
