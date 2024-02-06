@@ -69,7 +69,8 @@ def eval(Q, env_args, eval_episodes=1000):
     env = gym.make('FrozenLake-v1', **env_args)
     env = TimeLimit(env, max_episode_steps=100)
     env.reset()
-    eval_episodes = 1000
+
+    # Record the results
     wins = 0
     losses = 0
     rewards = []
@@ -154,7 +155,7 @@ if __name__ == "__main__":
 
     # Lengths of training and evaluation
     train_episodes = 20000
-    eval_episodes = 1000
+    eval_episodes = 10000
     viz_episodes = 10
     
     # Train and eval
