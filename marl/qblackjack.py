@@ -1,5 +1,4 @@
 import gymnasium as gym
-from gymnasium.wrappers import TimeLimit
 import numpy as np
 import argparse
 from tqdm import tqdm
@@ -153,7 +152,7 @@ if __name__ == "__main__":
     }
 
     # Lengths of training and eval
-    train_episodes = 2000
+    train_episodes = 20000
     eval_episodes = 1000
     viz_episodes = 10
 
@@ -163,6 +162,7 @@ if __name__ == "__main__":
     if args.viz:
         viz(Q, env_args)
     
+    # Print results    
     print(f"Overall win rate: {wins/eval_episodes*100:.2f}%")
     print(f"Overall draw rate: {draws/eval_episodes*100:.2f}%")
     print(f"Overall loss rate: {losses/eval_episodes*100:.2f}%")
