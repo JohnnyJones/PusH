@@ -73,23 +73,24 @@ def train(env_args, alpha=0.99, y=0.55, lr=0.36, train_episodes=2000):
             replay.append((s, a, r, s1, terminated))
 
             # Sample a minibatch
-            minibatch = np.random.choice(replay, 32)
+            minibatch = [replay[i] for i in np.random.choice(len(replay), 32, replace=True)]
             target = []
             estimate = []
             for state, action, reward, state1, terminal in minibatch:
                 if terminal:
                     target.append(reward)
                 else:
-                    target.append(reward + y * np.max(Q_hat(s1)))
-                estimate.append(Q(s)[a])
+                    target.append(reward + y * np.max(Q_hat(state1)))
+                estimate.append(Q(state)[action])
             target = torch.tensor(target)
             estimate = torch.tensor(estimate)
 
             # Gradient descent
-            optim.zero_grad()
-            loss = loss_fn(estimate, target)
-            loss.backward()
-            optim.step()
+            with torch.no_grad():
+                optim.zero_grad()
+                loss = loss_fn(estimate, target)
+                loss.backward()
+                optim.step()
             
 
             # Update target network if needed
@@ -129,11 +130,6 @@ if __name__ == "__main__":
     wins, draws, losses, rewards = eval(Q, env_args, eval_episodes)
     if args.viz:
         viz(Q, env_args)
-    
-    # Show average best action for each player sum
-    print("Best action for each player sum:")
-    for i in range(12, 22):
-        print(Q[i, 5, 0])
 
     # Print results    
     print(f"Overall win rate: {wins/eval_episodes*100:.2f}%")
