@@ -3,6 +3,7 @@ import numpy as np
 import argparse
 import torch
 import torch.nn as nn
+import random
 from tqdm import tqdm
 import qblackjack as qbj
 
@@ -34,7 +35,7 @@ def train(env_args, alpha=0.99, y=0.55, lr=0.36, train_episodes=2000):
     optim = torch.optim.RMSprop(Q.parameters(), lr=lr, alpha=alpha, eps=0.01)
 
     # Loss
-    loss_fn = torch.nn.functional.mse_loss
+    loss_fn = torch.nn.MSELoss()
 
     # Record the rewards and steps
     j_list = []
@@ -49,7 +50,7 @@ def train(env_args, alpha=0.99, y=0.55, lr=0.36, train_episodes=2000):
     k = 0
 
     # Train the agent
-    for i in range(train_episodes):
+    for i in tqdm(range(train_episodes)):
         s, _ = env.reset()
         r_total = 0
         j = 0
@@ -64,34 +65,40 @@ def train(env_args, alpha=0.99, y=0.55, lr=0.36, train_episodes=2000):
                 a = env.action_space.sample()
             else:
                 # Choose the best action
-                a = np.argmax(Q(s))
+                a = Q(torch.tensor(s, dtype=torch.float32)).argmax().item()
             
             # Take action, get new state
             s1, r, terminated, truncated, _ = env.step(a)
 
+            # Decay epsilon
+            e = max(0.1, e - decay)
+
             # Store the transition
             replay.append((s, a, r, s1, terminated))
 
-            # Sample a minibatch
-            minibatch = [replay[i] for i in np.random.choice(len(replay), 32, replace=True)]
+            # Skip training if not enough transitions
+            if len(replay) < 32:
+                continue
+
+            # Sample a batch
+            batch = random.sample(replay, 32)
             target = []
-            estimate = []
-            for state, action, reward, state1, terminal in minibatch:
+            for state, action, reward, state1, terminal in batch:
                 if terminal:
                     target.append(reward)
                 else:
-                    target.append(reward + y * np.max(Q_hat(state1)))
-                estimate.append(Q(state)[action])
+                    with torch.no_grad():
+                        target.append(reward + y * Q_hat(torch.tensor(state1, dtype=torch.float32)).max())
             target = torch.tensor(target)
-            estimate = torch.tensor(estimate)
+
+            # Forward pass
+            estimate = Q(torch.tensor([state for state, _, _, _, _ in batch], dtype=torch.float32)).gather(1, torch.tensor([[action] for _, action, _, _, _ in batch])).squeeze()
 
             # Gradient descent
-            with torch.no_grad():
-                optim.zero_grad()
-                loss = loss_fn(estimate, target)
-                loss.backward()
-                optim.step()
-            
+            optim.zero_grad()
+            loss = loss_fn(estimate, target)
+            loss.backward()
+            optim.step()
 
             # Update target network if needed
             if k % c == 0:
@@ -121,15 +128,15 @@ if __name__ == "__main__":
     }
 
     # Lengths of training and eval
-    train_episodes = 20000
+    train_episodes = 200
     eval_episodes = 1000
     viz_episodes = 10
 
     # Train, eval, and visualize
     Q, j_list, r_list = train(env_args, train_episodes=train_episodes)
-    wins, draws, losses, rewards = eval(Q, env_args, eval_episodes)
-    if args.viz:
-        viz(Q, env_args)
+    # wins, draws, losses, rewards = eval(Q, env_args, eval_episodes)
+    # if args.viz:
+    #     viz(Q, env_args)
 
     # Print results    
     print(f"Overall win rate: {wins/eval_episodes*100:.2f}%")
