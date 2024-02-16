@@ -141,8 +141,8 @@ if __name__ == "__main__":
         prog='QFrozenLake',
         description='Plays FrozenLake using Q-Learning',
     )
-    parser.add_argument('-v', '--viz', action='store_true')
-    parser.add_argument('-s', '--slippery', action='store_true')
+    parser.add_argument('-v', '--viz', help='use a visualizer to show example play', action='store_true')
+    parser.add_argument('-s', '--slippery', help='make the lake environment slippery', action='store_true')
     parser.add_argument('-q', '--show-qtable', action='store_true')
     args = parser.parse_args()
 

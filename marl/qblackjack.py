@@ -142,7 +142,7 @@ if __name__ == "__main__":
         prog='QBlackjack',
         description='Plays Blackjack using Q-Learning',
     )
-    parser.add_argument('-v', '--viz', action='store_true')
+    parser.add_argument('-v', '--viz', help='use a visualizer to show example play', action='store_true')
     args = parser.parse_args()
 
     # Environment arguments
