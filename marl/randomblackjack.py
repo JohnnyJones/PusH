@@ -1,70 +1,10 @@
 import gymnasium as gym
 import numpy as np
 import argparse
+
 from tqdm import tqdm
 
-def train(env_args, y=0.55, lr=0.36, train_episodes=2000):
-    # Create the environment
-    env = gym.make('Blackjack-v1', **env_args)
-    env.reset()
-
-    # Initialize the Q-table
-    q_size = [env.observation_space[i].n for i in range(len(env.observation_space))] + [env.action_space.n]
-    Q = np.zeros(q_size)
-
-    # Record the rewards and steps
-    j_list = []
-    r_list = []
-
-    # Epsilon
-    e = 1.0
-    decay = 1.0 / train_episodes
-
-    # Train the agent
-    for i in tqdm(range(train_episodes), "Training"):
-        s, _ = env.reset()
-        r_total = 0
-        j = 0
-
-        # Episode loop
-        while True:
-            j += 1
-
-            # Explore or choose action with epsilon
-            if np.random.rand() < e:
-                a = env.action_space.sample()
-            else:
-                # Choose the best action if it exists
-                if np.max(Q[s]) > 0:
-                    a = np.argmax(Q[s])
-                # Or pick action at random
-                else:
-                    a = env.action_space.sample()
-
-            # Take action, get new state
-            s1, r, terminated, truncated, _ = env.step(a)
-            r_total += r
-
-            # Update Q-table
-            Q[s, a] = Q[s, a] + lr * (r + y * np.max(Q[s1]) - Q[s, a])
-            
-            # Update state
-            s = s1
-
-            if terminated or truncated:
-                break
-        
-        # Decay epsilon
-        e -= decay
-
-        j_list.append(j)
-        r_list.append(r_total)
-    
-    env.close()
-    
-    return Q, j_list, r_list
-
-def eval(Q, env_args, eval_episodes=1000):
+def eval(env_args, eval_episodes=1000):
     # Create the environment
     env = gym.make('Blackjack-v1', **env_args)
     env.reset()
@@ -80,8 +20,8 @@ def eval(Q, env_args, eval_episodes=1000):
 
         # Episode loop
         while True:
-            # Choose the best action
-            a = np.argmax(Q[s])
+            # Choose action at random
+            a = env.action_space.sample()
 
             # Take action, get new state
             s1, r, terminated, truncated, _ = env.step(a)
@@ -106,7 +46,7 @@ def eval(Q, env_args, eval_episodes=1000):
     
     return wins, draws, losses, rewards
 
-def viz(Q, env_args, viz_episodes=10):
+def viz(env_args, viz_episodes=10):
     env = gym.make('Blackjack-v1', render_mode="human", **env_args)
     env.reset()
 
@@ -116,8 +56,8 @@ def viz(Q, env_args, viz_episodes=10):
 
         # Episode loop
         while True:
-            # Choose the best action
-            a = np.argmax(Q[s])
+            # Choose random action
+            a = env.action_space.sample()
 
             # Take action, get new state
             s1, r, terminated, truncated, _ = env.step(a)
@@ -139,8 +79,8 @@ def viz(Q, env_args, viz_episodes=10):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        prog='QBlackjack',
-        description='Plays Blackjack using Q-Learning',
+        prog='RandomBlackjack',
+        description='Plays Blackjack randomly',
     )
     parser.add_argument('-v', '--viz', help='use a visualizer to show example play', action='store_true')
     args = parser.parse_args()
@@ -151,16 +91,14 @@ if __name__ == "__main__":
         'sab': False,
     }
 
-    # Lengths of training and eval
-    train_episodes = 20000
+    # Lengths of eval
     eval_episodes = 1000000
     viz_episodes = 10
 
     # Train, eval, and visualize
-    Q, j_list, r_list = train(env_args, train_episodes=train_episodes)
-    wins, draws, losses, rewards = eval(Q, env_args, eval_episodes)
+    wins, draws, losses, rewards = eval(env_args, eval_episodes)
     if args.viz:
-        viz(Q, env_args)
+        viz(env_args)
     
     # Print results    
     print(f"Overall win rate: {wins/eval_episodes*100:.2f}%")
