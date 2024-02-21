@@ -1,13 +1,11 @@
-from collections import deque
+from collections import deque, namedtuple
 import gymnasium as gym
 import numpy as np
 import argparse
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-import random
 from tqdm import tqdm
-import qblackjack as qbj
 
 class BlackjackModel(nn.Module):
     def __init__(self):
@@ -22,6 +20,8 @@ class BlackjackModel(nn.Module):
         x = self.fc3(x)
         return x
 
+Replay = namedtuple("Replay", ["state", "action", "reward", "next_state", "terminal"])
+
 class ReplayBuffer(Dataset):
     def __init__(self):
         self.replay = deque()
@@ -35,6 +35,9 @@ class ReplayBuffer(Dataset):
     def append(self, item):
         self.replay.append(item)
 
+    def pop(self):
+        return self.replay.pop()
+
 def train(env_args, device=torch.device('cpu'), alpha=0.99, y=0.55, lr=0.36, train_episodes=2000):
     # Create the environment
     env = gym.make('Blackjack-v1', **env_args)
@@ -42,14 +45,16 @@ def train(env_args, device=torch.device('cpu'), alpha=0.99, y=0.55, lr=0.36, tra
 
     # Initialize dataset and dataloader
     replay_dataset = ReplayBuffer()
+    replay_dataset.append(("empty")) # add dummy item to prevent complaints from dataloader
     replay_dataloader = DataLoader(replay_dataset, batch_size=32, shuffle=True)
+    replay_dataset.pop()             # remove dummy item
 
     # Initialize the DQN
     Q: nn.Module = BlackjackModel()
-    Q.to(device)
+    Q.to(torch.device(device))
     Q_hat = type(Q)()
     Q_hat.load_state_dict(Q.state_dict())
-    Q_hat.to(device)
+    Q_hat.to(torch.device(device))
 
     # Optimizer
     optim = torch.optim.RMSprop(Q.parameters(), lr=lr, alpha=alpha, eps=0.01)
@@ -70,8 +75,9 @@ def train(env_args, device=torch.device('cpu'), alpha=0.99, y=0.55, lr=0.36, tra
     k = 0
 
     # Train the agent
-    for i in tqdm(range(train_episodes)):
+    for i in tqdm(range(train_episodes), "Training"):
         s, _ = env.reset()
+        s = torch.tensor(s, dtype=torch.float32, device=torch.device(device)).detach()
         r_total = 0
         j = 0
 
@@ -85,37 +91,49 @@ def train(env_args, device=torch.device('cpu'), alpha=0.99, y=0.55, lr=0.36, tra
                 a = env.action_space.sample()
             else:
                 # Choose the best action
-                a = Q(torch.tensor(s, dtype=torch.float32, device=device)).argmax().item()
-            
+                a = Q(s).argmax().item()
 
             # Take action, get new state
             s1, r, terminated, truncated, _ = env.step(a)
 
+            # Store the transition as tensors
+            if not isinstance(a, torch.Tensor):
+                a = torch.tensor(a, dtype=torch.int64, device=torch.device(device)).detach()
+            r = torch.tensor(r, dtype=torch.float32, device=torch.device(device)).detach()
+            s1 = torch.tensor(s1, dtype=torch.float32, device=torch.device(device)).detach()
+            t = torch.tensor(terminated or truncated, dtype=torch.bool, device=torch.device(device)).detach()
+            replay_dataset.append(Replay(s, a, r, s1, t))
+
             # Decay epsilon
             e = max(0.1, e - decay)
 
-            # Store the transition
-            replay_dataset.append((s, a, r, s1, terminated))
+            # Update state
+            s = s1.clone().detach()
 
             # Skip training if not enough transitions
             if len(replay_dataset) < 32:
+                if terminated or truncated:
+                    break
+                # else skip training
                 continue
+            
+            # --------------------------------------
+            # Update nn
+            # --------------------------------------
 
             # Sample a batch
-            batch = next(iter(replay_dataloader))
-            print(batch)
-            target = []
-            for state, action, reward, state1, terminal in batch:
-                if terminal:
-                    target.append(reward)
-                else:
-                    with torch.no_grad():
-                        target.append(reward + y * Q_hat(torch.tensor(state1, dtype=torch.float32, device=device)).max())
-            target = torch.tensor(target, device=device)
+            batch: Replay = next(iter(replay_dataloader))
+            target: torch.Tensor
 
-            # Forward pass
-            values: torch.Tensor = Q(torch.tensor([state for state, _, _, _, _ in batch], dtype=torch.float32, device=device))
-            estimate = values.gather(1, torch.tensor([[action] for _, action, _, _, _ in batch], device=device)).squeeze()
+            with torch.no_grad():
+                # Target output calculation
+                output_hat: torch.Tensor = Q_hat(batch.state)
+                values_hat = torch.max(output_hat, dim=1).values
+                target = batch.reward + y * values_hat * ~batch.terminal        
+
+            # Actual output
+            values: torch.Tensor = Q(batch.state)
+            estimate = values.gather(1, batch.action.unsqueeze(1)).squeeze(1)
 
             # Gradient descent
             optim.zero_grad()
@@ -136,7 +154,7 @@ def train(env_args, device=torch.device('cpu'), alpha=0.99, y=0.55, lr=0.36, tra
     return Q, j_list, r_list
 
 
-def eval(Q, env_args, eval_episodes=1000):
+def eval(Q, env_args, eval_episodes=1000, device='cpu'):
     # Create the environment
     env = gym.make('Blackjack-v1', **env_args)
     env.reset()
@@ -147,13 +165,13 @@ def eval(Q, env_args, eval_episodes=1000):
     losses = 0
     rewards = []
 
-    for i in range(eval_episodes):
+    for i in tqdm(range(eval_episodes), "Evaluation"):
         s, _ = env.reset()
 
         # Episode loop
         while True:
             # Choose the best action
-            a = Q(torch.tensor(s, dtype=torch.float32, device=device)).argmax().item()
+            a = Q(torch.tensor(s, dtype=torch.float32, device=torch.device(device))).argmax().item()
 
             # Take action, get new state
             s1, r, terminated, truncated, _ = env.step(a)
@@ -179,8 +197,38 @@ def eval(Q, env_args, eval_episodes=1000):
     return wins, draws, losses, rewards
 
 
-# def viz(Q, env_args, viz_episodes=10):
-#     qbj.viz(Q, env_args, viz_episodes)
+def viz(Q, env_args, viz_episodes=10, device='cpu'):
+    env = gym.make('Blackjack-v1', render_mode="human", **env_args)
+    env.reset()
+
+    for i in range(viz_episodes):
+        s, _ = env.reset()
+        print("Attempt", i, end=" ")
+
+        # Episode loop
+        while True:
+            # Choose the best action
+            a = Q(torch.tensor(s, dtype=torch.float32, device=torch.device(device))).argmax().item()
+
+
+            # Take action, get new state
+            s1, r, terminated, truncated, _ = env.step(a)
+
+            # Update state
+            s = s1
+
+            if terminated or truncated:
+                break
+        
+        if r >= 1.0:
+            print("Win")
+        elif r == -1.0:
+            print("Loss")
+        elif r == 0.0:
+            print("Draw")
+    
+    env.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -198,19 +246,18 @@ if __name__ == "__main__":
 
     # Lengths of training and eval
     train_episodes = 20000
-    eval_episodes = 1000
+    eval_episodes = 1000000
     viz_episodes = 10
 
     # Check if CUDA is available
-    device = torch.device('cpu')
+    device = 'cpu'
     if torch.cuda.is_available():
         print("Using CUDA")
-        device = torch.device('cuda')
+        device = 'cuda'
 
     # Train, eval, and visualize
-    print("Training:")
     Q, j_list, r_list = train(env_args, device=device, train_episodes=train_episodes)
-    wins, draws, losses, rewards = eval(Q, env_args, eval_episodes)
+    wins, draws, losses, rewards = eval(Q, env_args, eval_episodes, device=device)
     # if args.viz:
     #     viz(Q, env_args)
 
