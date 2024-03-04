@@ -30,14 +30,11 @@ class StochasticGreedyAgent(DeterministicGreedyAgent):
     def __init__(self) -> None:
         super(StochasticGreedyAgent, self).__init__()
 
-class RandomAgent(ChineseCheckersAgent):
-    def __init__(self) -> None:
-        super(RandomAgent, self).__init__()
-
 class DQNAgent(ChineseCheckersAgent):
-    def __init__(self, device: int | torch.device) -> None:
+    def __init__(self, device: str = 'cpu') -> None:
         super(DQNAgent, self).__init__()
         self.model = DQN()
+        self.device = torch.device(device)
         self.model.to(device)
 
     def act(self, observation):
