@@ -99,7 +99,10 @@ class DQN(nn.Module):
     def __init__(self) -> None:
         super(DQN, self).__init__()
 
+        # input board: 7x7x7 tensor
+        # 3x3 conv, 64 filters, no pad
         self.conv1 = nn.Conv2d(in_channels=7*7*7, out_channels=64, kernel_size=3, padding=0)
+        # 9 conv blocks
         self.block1 = Block()
         self.block2 = Block()
         self.block3 = Block()
@@ -109,6 +112,7 @@ class DQN(nn.Module):
         self.block7 = Block()
         self.block8 = Block()
         self.block9 = Block()
+        # value and policy heads
         self.value_head = ValueHead()
         self.policy_head = PolicyHead()
         
