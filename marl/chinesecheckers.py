@@ -30,7 +30,7 @@ class ChineseCheckersEnv(gym.Env):
             self.reset()
 
         def __repr__(self) -> str:
-            return str(self.board+1)
+            return str(self.board)
         
         def reset(self):
             self.board = -np.ones((7, 7), dtype=np.int8) # 7 rows, 7 columns, output is player_id
@@ -74,24 +74,27 @@ class ChineseCheckersEnv(gym.Env):
         
         def check_win(self):
             # top right of piece matrix
-            p1_win_positions = [
+            p0_win_positions = [
                 (0, 4), (0, 5), (0, 6),
                         (1, 5), (1, 6),
                                 (2, 6),
             ]
 
             # bottom left of piece matrix
-            p2_win_positions = [
+            p1_win_positions = [
                 (4, 0),
                 (5, 0), (5, 1),
                 (6, 0), (6, 1), (6, 2),
             ]
 
-            if all([self.position_to_id[i][1] == 1 for i in p1_win_positions]):
+            if all([self.position_to_id[i][1] == 0 for i in p0_win_positions]):
+                return 0
+            elif all([self.position_to_id[i][1] == 1 for i in p1_win_positions]):
                 return 1
-            elif all([self.position_to_id[i][1] == 2 for i in p2_win_positions]):
-                return 2
-            return 0
+            return -1
+
+        def observation(self):
+            return self.position_to_id
 
 
     def __init__(self, render_mode=None):
@@ -110,6 +113,7 @@ class ChineseCheckersEnv(gym.Env):
         self.clock = None
 
         self.board = self.Board()
+        self.turn = 0
         print(self.board)
 
     def _render_frame(self):
@@ -122,11 +126,11 @@ class ChineseCheckersEnv(gym.Env):
         
         canvas = pygame.Surface((self.window_size, self.window_size))
         canvas.fill(self.COLORS["BACKGROUND"])
+    
+    def _get_obs(self):
+        return self.board.observation()
 
     def _get_info(self):
-        return {}
-
-    def _get_obs(self):
         return {}
 
     def reset(self, seed=None, options=None):
@@ -141,15 +145,23 @@ class ChineseCheckersEnv(gym.Env):
         return observation, info
     
     def step(self, action):
+        # TODO: check if action is valid
+        self.board.move_piece(*action)
+
         reward = 0
-        terminated = False
+        winner = self.board.check_win()
+        if winner != -1:
+            reward = 1 if winner == self.turn else -1
+
+        terminated = reward != 0
+        truncated = False
         observation = self._get_obs()
         info = self._get_info()
 
         if self.render_mode == "human":
             self._render_frame()
 
-        return observation, reward, terminated, False, info
+        return observation, reward, terminated, truncated, info
     
     def close(self):
         if self.window is not None:
