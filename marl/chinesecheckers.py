@@ -1,3 +1,5 @@
+import os
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
 import numpy as np
 import pygame
 import gymnasium as gym
@@ -8,7 +10,7 @@ from gymnasium.envs.registration import register
 
 class ChineseCheckersEnv(gym.Env):
     metadata = {
-        "render_modes": ["human"],
+        "render_modes": ["human", "terminal"],
     }
 
     COLORS = {
@@ -63,9 +65,12 @@ class ChineseCheckersEnv(gym.Env):
             self.id_to_position[player_id, piece_id] = position
 
         def move_piece(self, player_id, piece_id, to_position: Position):
+            # convert to Position object
+            to_position = self.Position(*to_position)
+            
             # clear the previous position
-            from_position = self.Position(self.id_to_position[player_id, piece_id])
-            self.board[from_position] = 0
+            from_position = self.Position(*self.id_to_position[player_id, piece_id])
+            self.board[from_position] = -1
             self.position_to_id[player_id, from_position.x, from_position.y] = -1
 
             # set the new position
@@ -87,9 +92,9 @@ class ChineseCheckersEnv(gym.Env):
                 (6, 0), (6, 1), (6, 2),
             ]
 
-            if all([self.position_to_id[i][1] == 0 for i in p0_win_positions]):
+            if all([self.board[i] == 0 for i in p0_win_positions]):
                 return 0
-            elif all([self.position_to_id[i][1] == 1 for i in p1_win_positions]):
+            elif all([self.board[i] == 1 for i in p1_win_positions]):
                 return 1
             return -1
 
@@ -100,11 +105,11 @@ class ChineseCheckersEnv(gym.Env):
     def __init__(self, render_mode=None):
         self.window_size = 512 # Size of the PyGame window
 
-        # observation space is 2 players, 7x7 board, 6 pieces
-        self.observation_space = spaces.Box(low=np.array([0, 0, 0, 0]), high=np.array([1, 6, 6, 5]), dtype=np.int8)
+        # observation space is 2 players, 7x7 board
+        self.observation_space = spaces.Box(low=-1, high=6, shape=(2, 7, 7), dtype=np.int8)
 
         # action space is 6 pieces, 7x7 board destinations
-        self.action_space = spaces.Box(low=np.array([0, 0, 0]), high=np.array([5, 6, 6]), dtype=np.int8)
+        self.action_space = spaces.MultiDiscrete([6, 7, 7])
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -114,8 +119,13 @@ class ChineseCheckersEnv(gym.Env):
 
         self.board = self.Board()
         self.turn = 0
-        print(self.board)
 
+    def _render(self):
+        if self.render_mode == "human":
+            self._render_frame()
+        elif self.render_mode == "terminal":
+            print(self.board)
+    
     def _render_frame(self):
         if self.window is None and self.render_mode == "human":
             pygame.init()
@@ -124,6 +134,7 @@ class ChineseCheckersEnv(gym.Env):
                 (self.window_size, self.window_size)
             )
         
+        # TODO: render the board
         canvas = pygame.Surface((self.window_size, self.window_size))
         canvas.fill(self.COLORS["BACKGROUND"])
     
@@ -131,7 +142,9 @@ class ChineseCheckersEnv(gym.Env):
         return self.board.observation()
 
     def _get_info(self):
-        return {}
+        return {
+            "turn": f"P{self.turn}",
+        }
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -139,27 +152,26 @@ class ChineseCheckersEnv(gym.Env):
         observation = self._get_obs()
         info = self._get_info()
 
-        if self.render_mode == "human":
-            self._render_frame()
+        self._render()
         
         return observation, info
     
     def step(self, action):
         # TODO: check if action is valid
-        self.board.move_piece(*action)
+        self.board.move_piece(*(self.turn, *action))
 
         reward = 0
         winner = self.board.check_win()
         if winner != -1:
             reward = 1 if winner == self.turn else -1
 
+        self.turn = 1 - self.turn
         terminated = reward != 0
         truncated = False
         observation = self._get_obs()
         info = self._get_info()
 
-        if self.render_mode == "human":
-            self._render_frame()
+        self._render()
 
         return observation, reward, terminated, truncated, info
     
