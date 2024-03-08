@@ -76,6 +76,7 @@ class ChineseCheckersEnv(gym.Env):
             # set the new position
             self.board[to_position] = player_id
             self.position_to_id[player_id, to_position.x, to_position.y] = piece_id
+            self.id_to_position[player_id, piece_id] = to_position
         
         def check_win(self):
             # top right of piece matrix
@@ -97,6 +98,30 @@ class ChineseCheckersEnv(gym.Env):
             elif all([self.board[i] == 1 for i in p1_win_positions]):
                 return 1
             return -1
+
+        def get_valid_actions(self, player_id):
+            moves = np.zeros((6, 7, 7), dtype=np.bool_)
+            
+            # rolling
+            for piece_id in range(6):
+                # check adjacent positions
+                position = self.Position(*self.id_to_position[player_id, piece_id])
+                for dx in range(-1, 2): # -1, 0, 1
+                    for dy in range(-1, 2):
+                        if dx == 0 and dy == 0:
+                            continue
+                        new_position = self.Position(position.x + dx, position.y + dy)
+                        if 0 <= new_position.x < 7 and 0 <= new_position.y < 7 and self.board[new_position] == -1:
+                            moves[piece_id, new_position.x, new_position.y] = True
+            
+            # hopping with DFS
+            for piece_id in range(6):
+                position = self.Position(*self.id_to_position[player_id, piece_id])
+                # self._dfs(moves, player_id, piece_id, position, position, 0)
+
+            return moves
+
+
 
         def observation(self):
             return self.position_to_id
