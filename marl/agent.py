@@ -2,29 +2,45 @@ import torch
 import torch.nn as nn
 import gymnasium as gym
 from agentdqn import DQN
+from collections import namedtuple
+import random
 
-# Chinese Checkers Agent
-# Performs error checking
 class ChineseCheckersAgent():
-    def __init__(self):
-        self.model = None
+    Action = namedtuple("Action", ["piece_id", "position"])
 
-    def act(self, observation):
-        # observation should be 7x7x7 tensor
-        if not isinstance(observation, torch.Tensor):
-            raise ValueError("observation should be a tensor")
-        if observation.shape != (7, 7, 7):
-            raise ValueError("observation should be a 7x7x7 tensor")
-        
-        return self._get_best_action(observation)
+    def __init__(self) -> None:
+        raise NotImplementedError("ChineseCheckersAgent is an abstract class")
 
-    def _get_best_action(self, observation):
-        if self.model is None:
-            raise ValueError("model not set")
+    def act(self, observation, info) -> Action:
+        if observation is None:
+            raise ValueError("Observation cannot be None")
+        if info is None:
+            raise ValueError("Info cannot be None")
  
+class RandomAgent(ChineseCheckersAgent):
+    def __init__(self) -> None:
+        return
+
+    def act(self, observation, info: dict) -> ChineseCheckersAgent.Action:
+        super(RandomAgent, self).act(observation, info)
+        return self._get_random_action(observation, info)
+    
+    def _get_random_action(self, observation, info: dict):
+        actions = info["valid_actions_list"]
+        if len(actions) == 0:
+            raise ValueError("No valid actions available")
+        return random.choice(actions)
+
 class DeterministicGreedyAgent(ChineseCheckersAgent):
     def __init__(self) -> None:
         super(DeterministicGreedyAgent, self).__init__()
+    
+    def act(self, observation):
+        super(DeterministicGreedyAgent, self).act(observation)
+        return self._get_best_action(observation)
+    
+    def _get_best_action(self, observation):
+        pass
 
 class StochasticGreedyAgent(DeterministicGreedyAgent):
     def __init__(self) -> None:
