@@ -257,7 +257,15 @@ class ChineseCheckersEnv(gym.Env):
         if self.render_mode == "human":
             self._render_frame()
         elif self.render_mode == "terminal":
-            print(self.board)
+            for row in self.board.board:
+                print("[", end=" ")
+                for cell in row:
+                    if cell == -1:
+                        print(".", end=" ")
+                    else:
+                        print(cell, end=" ")
+                print("]")
+            print()
     
     def _render_frame(self):
         if self.window is None and self.render_mode == "human":
@@ -276,10 +284,11 @@ class ChineseCheckersEnv(gym.Env):
 
     def _get_info(self):
         return {
-            "turn": f"P{self.turn}",
+            "turn": self.turn,
             "action_mask": self.board.get_action_mask(self.turn),
             "valid_actions_dict": self.board.get_valid_actions_dict(self.turn),
             "valid_actions_list": self.board.get_valid_actions_list(self.turn),
+            "id_to_position": self.board.id_to_position,
         }
 
     def reset(self, seed=None, options=None):
