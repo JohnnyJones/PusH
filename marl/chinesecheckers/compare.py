@@ -1,10 +1,11 @@
-from chinesecheckers import ChineseCheckersEnv
-from collections import namedtuple
-from agent import ChineseCheckersAgent, RandomAgent, DeterministicGreedyAgent, StochasticGreedyAgent
 import gymnasium as gym
-from tqdm import tqdm
 
-Action = namedtuple("Action", ["piece_id", "position"])
+from chinesecheckers import ChineseCheckersEnv
+from data import Action, Position
+from agent import ChineseCheckersAgent, RandomAgent, DeterministicGreedyAgent, StochasticGreedyAgent
+from tqdm import tqdm
+from argparse import ArgumentParser
+
 
 def play(env: gym.Env, agents: ChineseCheckersAgent) -> int:
     obs, info = env.reset()
@@ -16,21 +17,34 @@ def play(env: gym.Env, agents: ChineseCheckersAgent) -> int:
     return info["winner"]
 
 if __name__ == "__main__":
-    env = gym.make("ChineseCheckers-v0")
+    parser = ArgumentParser()
+    parser.add_argument("-e", "--episodes", type=int, default=1000)
+    parser.add_argument("-r", "--render", type=str, default=None)
+    args = parser.parse_args()
+
+    env = gym.make("ChineseCheckers-v0", render_mode=args.render)
     agents = [StochasticGreedyAgent(), DeterministicGreedyAgent()]
-    episodes = 20000
+    episodes = args.episodes
     winners = []
     errors = 0
     ties = 0
-    for i in tqdm(range(episodes)):
+
+    if args.render is not None:
+        r = range(episodes)
+    else:
+        r = tqdm(range(episodes))
+    for i in r:
         try:
             winner = play(env, agents)
             if winner != -1:
                 winners.append(winner)
             else:
                 ties += 1
-        except:
+        except Exception as e:
+            if e == KeyboardInterrupt:
+                break
             errors += 1
+            print(e)
 
     env.close()
 
