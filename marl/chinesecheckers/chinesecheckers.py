@@ -257,18 +257,21 @@ class ChineseCheckersEnv(gym.Env):
         if self.render_mode == "human":
             self._render_frame()
         elif self.render_mode == "terminal":
-            for row in self.board.board:
-                print("[", end=" ")
-                for cell in row:
-                    if cell == -1:
-                        print(".", end=" ")
-                    else:
-                        print(cell, end=" ")
-                print("]")
-            print()
+            self._render_terminal()
+    
+    def _render_terminal(self):
+        for row in self.board.board:
+            print("[", end=" ")
+            for cell in row:
+                if cell == -1:
+                    print(".", end=" ")
+                else:
+                    print(cell, end=" ")
+            print("]")
+        print()
     
     def _render_frame(self):
-        if self.window is None and self.render_mode == "human":
+        if self.window is None:
             pygame.init()
             pygame.display.init()
             self.window = pygame.display.set_mode(
@@ -289,6 +292,7 @@ class ChineseCheckersEnv(gym.Env):
             "valid_actions_dict": self.board.get_valid_actions_dict(self.turn),
             "valid_actions_list": self.board.get_valid_actions_list(self.turn),
             "id_to_position": self.board.id_to_position,
+            "winner": self.board.check_win(),
         }
 
     def reset(self, seed=None, options=None):

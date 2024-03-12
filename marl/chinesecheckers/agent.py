@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import gymnasium as gym
+import numpy as np
 from agentdqn import DQN
 from collections import namedtuple
 import random
@@ -92,6 +93,30 @@ class StochasticGreedyAgent(DeterministicGreedyAgent):
     def __init__(self) -> None:
         super(StochasticGreedyAgent, self).__init__()
 
+    def _get_best_action(self, observation, info) -> ChineseCheckersAgent.Action:
+        actions = info["valid_actions_list"]
+        if len(actions) == 0:
+            raise ValueError("No valid actions available")
+        
+        heuristics = [self._heuristic(observation, action, info) for action in actions]
+        # TODO: implement closer to how the paper does it
+        # use softmax for now
+        def softmax(x):
+            return np.exp(x)/sum(np.exp(x))
+        if sum(heuristics) <= 0:
+            weights = softmax(heuristics)
+        else:
+            weights = [heuristic/sum(heuristics) for heuristic in heuristics]
+        try:
+            action = random.choices(actions, weights=weights, k=1)[0]
+        except:
+            print(weights)
+            print(heuristics)
+            print(actions)
+            raise
+
+        return action
+
 class DQNAgent(ChineseCheckersAgent):
     def __init__(self, device: str = 'cpu') -> None:
         super(DQNAgent, self).__init__()
@@ -99,6 +124,16 @@ class DQNAgent(ChineseCheckersAgent):
         self.device = torch.device(device)
         self.model.to(device)
 
+        self.train = False
+
     def act(self, observation):
         super(DQNAgent, self).act(observation)
         return self._get_best_action(observation)
+    
+    def train(self):
+        self.train = True
+    
+    def eval(self):
+        self.train = False
+
+    
