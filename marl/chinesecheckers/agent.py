@@ -2,9 +2,11 @@ import torch
 import torch.nn as nn
 import gymnasium as gym
 import numpy as np
+import random
+
 from agentdqn import DQN
 from collections import namedtuple
-import random
+from data import Action, Position
 
 class ChineseCheckersAgent():
     Action = namedtuple("Action", ["piece_id", "position"])
@@ -23,7 +25,7 @@ class RandomAgent(ChineseCheckersAgent):
     def __init__(self) -> None:
         return
 
-    def act(self, observation, info: dict) -> ChineseCheckersAgent.Action:
+    def act(self, observation, info: dict) -> Action:
         super(RandomAgent, self).act(observation, info)
         return self._get_random_action(observation, info)
     
@@ -37,11 +39,11 @@ class DeterministicGreedyAgent(ChineseCheckersAgent):
     def __init__(self) -> None:
         pass
     
-    def act(self, observation, info) -> ChineseCheckersAgent.Action:
+    def act(self, observation, info) -> Action:
         super(DeterministicGreedyAgent, self).act(observation, info)
         return self._get_best_action(observation, info)
     
-    def _get_best_action(self, observation, info) -> ChineseCheckersAgent.Action:
+    def _get_best_action(self, observation, info) -> Action:
         actions = info["valid_actions_list"]
         if len(actions) == 0:
             raise ValueError("No valid actions available")
@@ -57,7 +59,7 @@ class DeterministicGreedyAgent(ChineseCheckersAgent):
             # we have multiple best actions
             # find furthest behind piece
             def distance(player, piece_id):
-                position = ChineseCheckersAgent.Position(*info["id_to_position"][player][piece_id])
+                position = Position(*info["id_to_position"][player][piece_id])
                 distance = position.x - position.y
                 if player == 1:
                     distance = -distance
@@ -75,10 +77,10 @@ class DeterministicGreedyAgent(ChineseCheckersAgent):
         return best_action
 
     
-    def _heuristic(self, observation, action: ChineseCheckersAgent.Action, info):
+    def _heuristic(self, observation, action: Action, info):
         # Moving further is better
         turn = info["turn"]
-        starting_position = ChineseCheckersAgent.Position(*info["id_to_position"][turn][action.piece_id])
+        starting_position = Position(*info["id_to_position"][turn][action.piece_id])
         ending_position = action.position
 
         # due the ending positions being at the top right and bottom left of the board matrix,
@@ -93,7 +95,7 @@ class StochasticGreedyAgent(DeterministicGreedyAgent):
     def __init__(self) -> None:
         super(StochasticGreedyAgent, self).__init__()
 
-    def _get_best_action(self, observation, info) -> ChineseCheckersAgent.Action:
+    def _get_best_action(self, observation, info) -> Action:
         actions = info["valid_actions_list"]
         if len(actions) == 0:
             raise ValueError("No valid actions available")

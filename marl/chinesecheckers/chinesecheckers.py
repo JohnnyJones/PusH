@@ -7,6 +7,7 @@ import gymnasium as gym
 from collections import namedtuple
 from gymnasium import spaces
 from gymnasium.envs.registration import register
+from data import Action, Position
 
 class ChineseCheckersEnv(gym.Env):
     metadata = {
@@ -25,9 +26,6 @@ class ChineseCheckersEnv(gym.Env):
     }
 
     class Board: 
-        class Position(namedtuple("Position", ["x", "y"])): pass
-        class Action(namedtuple("Action", ["piece_id", "position"])): pass
-
         # game board is 7x7 matrix (diamond-shaped board) with 2 players
         def __init__(self):
             self.reset()
@@ -48,7 +46,7 @@ class ChineseCheckersEnv(gym.Env):
             ]
             
             for i, position in enumerate(p0_starting_positions):
-                self.add_piece(0, i, self.Position(*position))
+                self.add_piece(0, i, Position(*position))
 
             # P1 starting positions
             p1_starting_positions = [
@@ -58,7 +56,7 @@ class ChineseCheckersEnv(gym.Env):
             ]
 
             for i, position in enumerate(p1_starting_positions):
-                self.add_piece(1, i, self.Position(*position))
+                self.add_piece(1, i, Position(*position))
         
         def add_piece(self, player_id, piece_id, position: Position):
             self.board[position] = player_id
@@ -67,10 +65,10 @@ class ChineseCheckersEnv(gym.Env):
 
         def move_piece(self, player_id, piece_id, to_position: Position):
             # convert to Position object
-            to_position = self.Position(*to_position)
+            to_position = Position(*to_position)
             
             # clear the previous position
-            from_position = self.Position(*self.id_to_position[player_id, piece_id])
+            from_position = Position(*self.id_to_position[player_id, piece_id])
             self.board[from_position] = -1
             self.position_to_id[player_id, from_position.x, from_position.y] = -1
 
@@ -106,7 +104,7 @@ class ChineseCheckersEnv(gym.Env):
             # rolling
             for piece_id in range(6):
                 # check adjacent positions
-                position = self.Position(*self.id_to_position[player_id, piece_id])
+                position = Position(*self.id_to_position[player_id, piece_id])
                 adjacent_positions = self.get_reachable_positions(position)
                 for adjacent_position in adjacent_positions:
                     moves[piece_id, adjacent_position.x, adjacent_position.y] = True
@@ -116,18 +114,18 @@ class ChineseCheckersEnv(gym.Env):
         def get_valid_actions_list(self, player_id):
             actions = []
             for piece_id in range(6):
-                position = self.Position(*self.id_to_position[player_id, piece_id])
+                position = Position(*self.id_to_position[player_id, piece_id])
                 reachable_positions = self.get_reachable_positions(position)
                 for reachable_position in reachable_positions:
-                    action = self.Action(piece_id, 
-                                         self.Position(reachable_position.x, reachable_position.y))
+                    action = Action(piece_id, 
+                                         Position(reachable_position.x, reachable_position.y))
                     actions.append(action)
             return actions
 
         def get_valid_actions_dict(self, player_id):
             actions = {}
             for piece_id in range(6):
-                position = self.Position(*self.id_to_position[player_id, piece_id])
+                position = Position(*self.id_to_position[player_id, piece_id])
                 reachable_positions = self.get_reachable_positions(position)
                 for reachable_position in reachable_positions:
                     if piece_id not in actions:
@@ -142,7 +140,7 @@ class ChineseCheckersEnv(gym.Env):
                 for dy in range(-1, 2):
                     if dx + dy == 0:
                         continue
-                    new_position = self.Position(position.x + dx, position.y + dy)
+                    new_position = Position(position.x + dx, position.y + dy)
                     if 0 <= new_position.x < 7 and 0 <= new_position.y < 7:
                         positions.append(new_position)
         
@@ -152,7 +150,7 @@ class ChineseCheckersEnv(gym.Env):
                 for dy in range(-1, 2):
                     if dx + dy == 0:
                         continue
-                    new_position = self.Position(position.x + dx, position.y + dy)
+                    new_position = Position(position.x + dx, position.y + dy)
                     if 0 <= new_position.x < 7 and 0 <= new_position.y < 7 and self.board[new_position] == -1:
                         positions.append(new_position)
             return positions
@@ -163,7 +161,7 @@ class ChineseCheckersEnv(gym.Env):
                 for dy in range(-1, 2):
                     if dx + dy == 0:
                         continue
-                    new_position = self.Position(position.x + dx, position.y + dy)
+                    new_position = Position(position.x + dx, position.y + dy)
                     if 0 <= new_position.x < 7 and 0 <= new_position.y < 7 and self.board[new_position] != -1:
                         positions.append(new_position)
             return positions
@@ -174,8 +172,8 @@ class ChineseCheckersEnv(gym.Env):
                 for dy in range(-1, 2):
                     if dx + dy == 0:
                         continue
-                    adj_position = self.Position(position.x + dx, position.y + dy)
-                    hop_position = self.Position(position.x + 2 * dx, position.y + 2 * dy)
+                    adj_position = Position(position.x + dx, position.y + dy)
+                    hop_position = Position(position.x + 2 * dx, position.y + 2 * dy)
                     if (0 <= hop_position.x < 7 and 0 <= hop_position.y < 7 and
                         self.board[adj_position] != -1):
                         positions.append(hop_position)
@@ -187,8 +185,8 @@ class ChineseCheckersEnv(gym.Env):
                 for dy in range(-1, 2):
                     if dx + dy == 0:
                         continue
-                    adj_position = self.Position(position.x + dx, position.y + dy)
-                    hop_position = self.Position(position.x + 2 * dx, position.y + 2 * dy)
+                    adj_position = Position(position.x + dx, position.y + dy)
+                    hop_position = Position(position.x + 2 * dx, position.y + 2 * dy)
                     if (0 <= hop_position.x < 7 and 0 <= hop_position.y < 7 and
                         self.board[adj_position] != -1 and self.board[hop_position] == -1):
                         positions.append(hop_position)
@@ -308,7 +306,7 @@ class ChineseCheckersEnv(gym.Env):
     def step(self, action):
         # TODO: check if action is valid
         piece_id, move_position = action
-        move_position = self.board.Position(*move_position)
+        move_position = Position(*move_position)
         valid_actions = self.board.get_action_mask(self.turn)
         if not valid_actions[piece_id, move_position.x, move_position.y]:
             raise ValueError("Invalid action")
