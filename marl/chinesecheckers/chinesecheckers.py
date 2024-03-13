@@ -12,17 +12,18 @@ from data import Action, Position
 class ChineseCheckersEnv(gym.Env):
     metadata = {
         "render_modes": ["human", "terminal"],
+        "render_fps": 4,
     }
 
     COLORS = {
-        "BACKGROUND": (255, 255, 255),
-        "EMPTY":      (139, 139, 139),
-        "P1":         (0,   0,   0  ),
-        "P2":         (255, 255, 255),
-        "P3":         (255, 0,   0  ),
-        "P4":         (0,   0,   255),
-        "P5":         (0,   255, 0  ),
-        "P6":         (255, 255, 0  ),
+        "BACKGROUND": (56,  30,  26 ),
+        "EMPTY":      (81,  56,  46 ),
+        "P0":         (0,   0,   0  ),
+        "P1":         (255, 255, 255),
+        "P2":         (255, 0,   0  ),
+        "P3":         (0,   0,   255),
+        "P4":         (0,   255, 0  ),
+        "P5":         (255, 255, 0  ),
     }
 
     class Board: 
@@ -33,30 +34,32 @@ class ChineseCheckersEnv(gym.Env):
         def __repr__(self) -> str:
             return str(self.board)
         
-        def reset(self):
-            self.board = -np.ones((7, 7), dtype=np.int8) # 7 rows, 7 columns, output is player_id
-            self.position_to_id = -np.ones((2, 7, 7), dtype=np.int8) # 2 player_ids, 7 rows, 7 columns, output is piece_id
-            self.id_to_position = -np.ones((2, 6, 2), dtype=np.int8) # 2 player_ids, 6 piece_ids, 2 coordinates, output is (x, y)
-
-            # P0 starting positions
+        def starting_positions(self, player_id):
             p0_starting_positions = [
                 (4, 0),
                 (5, 0), (5, 1),
                 (6, 0), (6, 1), (6, 2),
             ]
-            
-            for i, position in enumerate(p0_starting_positions):
-                self.add_piece(0, i, Position(*position))
 
-            # P1 starting positions
             p1_starting_positions = [
                 (0, 4), (0, 5), (0, 6),
                         (1, 5), (1, 6),
                                 (2, 6),
             ]
 
-            for i, position in enumerate(p1_starting_positions):
-                self.add_piece(1, i, Position(*position))
+            return p0_starting_positions if player_id == 0 else p1_starting_positions
+        
+        def win_positions(self, player_id):
+            return self.starting_positions(1 - player_id)
+
+        def reset(self):
+            self.board = -np.ones((7, 7), dtype=np.int8) # 7 rows, 7 columns, output is player_id
+            self.position_to_id = -np.ones((2, 7, 7), dtype=np.int8) # 2 player_ids, 7 rows, 7 columns, output is piece_id
+            self.id_to_position = -np.ones((2, 6, 2), dtype=np.int8) # 2 player_ids, 6 piece_ids, 2 coordinates, output is (x, y)
+
+            for player_id in range(2):
+                for i, position in enumerate(self.starting_positions(player_id)):
+                    self.add_piece(player_id, i, Position(*position))
         
         def add_piece(self, player_id, piece_id, position: Position):
             self.board[position] = player_id
@@ -78,24 +81,10 @@ class ChineseCheckersEnv(gym.Env):
             self.id_to_position[player_id, piece_id] = to_position
         
         def check_win(self):
-            # top right of piece matrix
-            p0_win_positions = [
-                (0, 4), (0, 5), (0, 6),
-                        (1, 5), (1, 6),
-                                (2, 6),
-            ]
-
-            # bottom left of piece matrix
-            p1_win_positions = [
-                (4, 0),
-                (5, 0), (5, 1),
-                (6, 0), (6, 1), (6, 2),
-            ]
-
-            if all([self.board[i] == 0 for i in p0_win_positions]):
-                return 0
-            elif all([self.board[i] == 1 for i in p1_win_positions]):
-                return 1
+            for player_id in range(2):
+                win_positions = self.win_positions(player_id)
+                if all([self.board[i] == player_id for i in win_positions]):
+                    return player_id
             return -1
 
         def get_action_mask(self, player_id):
@@ -234,7 +223,7 @@ class ChineseCheckersEnv(gym.Env):
 
 
     def __init__(self, render_mode=None):
-        self.window_size = 512 # Size of the PyGame window
+        self.window_size = 1024 # Size of the PyGame window
 
         # observation space is 2 players, 7x7 board
         self.observation_space = spaces.Box(low=-1, high=6, shape=(2, 7, 7), dtype=np.int8)
@@ -276,10 +265,69 @@ class ChineseCheckersEnv(gym.Env):
                 (self.window_size, self.window_size)
             )
         
-        # TODO: render the board
-        canvas = pygame.Surface((self.window_size, self.window_size))
-        canvas.fill(self.COLORS["BACKGROUND"])
+        if self.clock is None:
+            self.clock = pygame.time.Clock()
+
+        self.window.fill(self.COLORS["BACKGROUND"])
+
+        # draw the board diamond
+        piece_radius = self.window_size // 14 // 2
+        piece_size = piece_radius * 2
+
+        def piece_position(x, y):
+            starting_position = (self.window_size // 2 - piece_size * 3, self.window_size // 2)
+            position_adjustment = (0.5*(x + y) * piece_size, (x - y) * piece_size)
+            position = (starting_position[0] + position_adjustment[0], starting_position[1] + position_adjustment[1])
+            return position
+
+        # draw the starting positions
+        for player_id in range(2):
+            for i, position in enumerate(self.board.starting_positions(player_id)):
+                color = self.mute_color(self.COLORS[f"P{player_id}"])
+                pygame.draw.circle(
+                    self.window,
+                    color,
+                    piece_position(*position),
+                    piece_radius,
+                    0
+                )
+
+        for x in range(7):
+            for y in range(7):
+                position = piece_position(x, y)
+                color = self.COLORS["EMPTY"]
+                width = piece_radius // 5
+                if self.board.board[x, y] != -1:
+                    color = self.COLORS[f"P{self.board.board[x, y]}"]
+                    width = 0
+                
+                # draw the pieces
+                pygame.draw.circle(
+                    self.window,
+                    color,
+                    position,
+                    piece_radius,
+                    width
+                )
+
+                # draw the player id
+                if self.board.board[x, y] != -1:
+                    font = pygame.font.Font(None, 36)
+                    text = font.render(str(self.board.board[x, y]), True, self.invert_color(color))
+                    text_rect = text.get_rect(center=position)
+                    self.window.blit(text, text_rect)
+        
+        pygame.event.pump()
+        pygame.display.update()
+        self.clock.tick(self.metadata["render_fps"])
     
+    def invert_color(self, color):
+        return tuple(255 - c for c in color)
+    
+    def mute_color(self, color):
+        # bring close to grey
+        return tuple((c + 100) // 2 for c in color)
+
     def _get_obs(self):
         return self.board.observation()
 
@@ -295,6 +343,7 @@ class ChineseCheckersEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
+        self.board.reset()
 
         observation = self._get_obs()
         info = self._get_info()
@@ -304,7 +353,6 @@ class ChineseCheckersEnv(gym.Env):
         return observation, info
     
     def step(self, action):
-        # TODO: check if action is valid
         piece_id, move_position = action
         move_position = Position(*move_position)
         valid_actions = self.board.get_action_mask(self.turn)
@@ -315,10 +363,10 @@ class ChineseCheckersEnv(gym.Env):
         reward = 0
         winner = self.board.check_win()
         if winner != -1:
-            reward = 1 if winner == self.turn else -1
+            reward = (-1)**(1-winner)
 
         self.turn = 1 - self.turn
-        terminated = reward != 0
+        terminated = winner != -1
         truncated = False
         observation = self._get_obs()
         info = self._get_info()
