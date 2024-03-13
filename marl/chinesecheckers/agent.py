@@ -7,6 +7,7 @@ import random
 from agentdqn import DQN
 from collections import namedtuple
 from data import Action, Position
+from chinesecheckers import Board, ChineseCheckersEnv
 
 class ChineseCheckersAgent():
     Action = namedtuple("Action", ["piece_id", "position"])
@@ -106,6 +107,23 @@ class StochasticGreedyAgent(DeterministicGreedyAgent):
 
         return action
 
+class MctsTreeNode:
+    def __init__(self, board: Board):
+        self.board: Board = board
+        self.children: list[MctsTreeNode] = []
+        self.visits: int = 0
+        self.accumulated_value: float = 0.0
+        self.prior_probability: float = 0.0
+
+    def add_child(self, child_node):
+        self.children.append(child_node)
+    
+    def remove_child(self, child_node):
+        self.children.remove(child_node)
+    
+    def mean_value(self):
+        return self.accumulated_value / self.visits
+
 class DQNAgent(ChineseCheckersAgent):
     def __init__(self, device: str = 'cpu') -> None:
         super(DQNAgent, self).__init__()
@@ -134,13 +152,36 @@ class DQNAgent(ChineseCheckersAgent):
         return self._decision(self, actions, visits, temperature)
 
     def _mcts(self, observation, info, iterations) -> tuple[list[Action], list[int]]:
-        pass
+        root = MctsTreeNode(Board(observation))
+        for i in range(iterations):
+            node: MctsTreeNode
+            self._selection(root, c=3.5, out=node)
+            self._expansion(node, info["turn"])
 
-    def _selection(self, observation):
-        pass
+    def _selection(self, node: MctsTreeNode, out: MctsTreeNode, c: float = 3.5):
+        if len(node.children) == 0:
+            return node
+        if node.board.check_win() != -1:
+            # board is terminal
+            return node
+        total_child_visits = sum(child.visits for child in node.children)
+        upper_confidence_bounds = [child.mean_value() + c * child.prior_probability * 
+                                    np.sqrt(total_child_visits) /(child.visits +1) 
+                                    for child in node.children]
+        return self._selection(node.children[np.argmax(upper_confidence_bounds)], out, c)
 
-    def _expansion(self, observation):
-        pass
+    def _expansion(self, node: MctsTreeNode, turn: int):
+        if node.board.check_win() == -1:
+            # use raw win vales
+            if node.board.turn == turn:
+                # you lost
+                node.accumulated_value -= 1
+            else:
+                # you won
+                node.accumulated_value += 1
+        # else:
+        #     # get priors and estimated value from nn
+        #     prior, value = self.model()
 
     def _backup(self, observation):
         pass
@@ -153,6 +194,3 @@ class DQNAgent(ChineseCheckersAgent):
         probabilites = [visit ** (1 / temperature) / probability_denominator for visit in visits]
 
         return random.choices(actions, weights=probabilites, k=1)[0]
-
-    def _get_valid_actions(self, observation) -> list[Action]:
-        pass
