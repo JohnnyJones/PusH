@@ -1,20 +1,38 @@
 import gymnasium as gym
+import random
 
 from chinesecheckers import ChineseCheckersEnv
 from data import Action, Position
 from agent import ChineseCheckersAgent, RandomAgent, DeterministicGreedyAgent, StochasticGreedyAgent
 from tqdm import tqdm
 from argparse import ArgumentParser
+from collections import deque
 
-
-def play(env: gym.Env, agents: ChineseCheckersAgent) -> int:
+def play(env: gym.Env, agents: list[ChineseCheckersAgent]) -> int:
     obs, info = env.reset()
     terminated = False
+    turn = 0
+    max_turns = 100
+    random_turns_per_agent = 3
+    action_history = {i: deque(maxlen=3) for i in range(len(agents))}
     while not terminated:
-        action = agents[info["turn"]].act(obs, info)
+        if turn < len(agents) * random_turns_per_agent:
+            action = take_random_action(obs, info)
+        else:
+            action = agents[info["turn"]].act(obs, info)
+        # TODO: check for circular actions
         obs, reward, terminated, truncated, info = env.step(action)
+        turn += 1
+        if turn > max_turns:
+            break
 
     return info["winner"]
+
+def take_random_action(obs, info):
+    actions = info["valid_actions_list"]
+    if len(actions) == 0:
+        raise ValueError("No valid actions available")
+    return random.choice(actions)
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -23,7 +41,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     env = gym.make("ChineseCheckers-v0", render_mode=args.render)
-    agents = [StochasticGreedyAgent(), DeterministicGreedyAgent()]
+    agents: list[ChineseCheckersAgent] = [StochasticGreedyAgent(), DeterministicGreedyAgent()]
     episodes = args.episodes
     winners = []
     errors = 0
@@ -34,6 +52,8 @@ if __name__ == "__main__":
     else:
         r = tqdm(range(episodes))
     for i in r:
+        if i % 2 == 0:
+            agents = agents[::-1]
         try:
             winner = play(env, agents)
             if winner != -1:
