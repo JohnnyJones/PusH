@@ -41,14 +41,13 @@ class DeterministicGreedyAgent(ChineseCheckersAgent):
     
     def act(self, observation, info) -> Action:
         super(DeterministicGreedyAgent, self).act(observation, info)
-        return self._get_best_action(observation, info)
-    
-    def _get_best_action(self, observation, info) -> Action:
         actions = info["valid_actions_list"]
         if len(actions) == 0:
             raise ValueError("No valid actions available")
-        
         heuristics = [self._heuristic(observation, action, info) for action in actions]
+        return self._get_best_action(actions, heuristics, info)
+    
+    def _get_best_action(self, actions: list[Action], heuristics: list, info) -> Action:       
         # find all the actions with the best heuristic
         best_heuristic = max(heuristics)
         best_actions = [action for action, heuristic in zip(actions, heuristics) if heuristic == best_heuristic]
@@ -95,27 +94,15 @@ class StochasticGreedyAgent(DeterministicGreedyAgent):
     def __init__(self) -> None:
         super(StochasticGreedyAgent, self).__init__()
 
-    def _get_best_action(self, observation, info) -> Action:
-        actions = info["valid_actions_list"]
-        if len(actions) == 0:
-            raise ValueError("No valid actions available")
+    def _get_best_action(self, actions: list[Action], heuristics: list, info) -> Action:       
+        normalized_heuristics = [heuristic * (heuristic > 0) for heuristic in heuristics]
         
-        heuristics = [self._heuristic(observation, action, info) for action in actions]
-        # TODO: implement closer to how the paper does it
-        # use softmax for now
-        def softmax(x):
-            return np.exp(x)/sum(np.exp(x))
-        if sum(heuristics) <= 0:
-            weights = softmax(heuristics)
-        else:
-            weights = [heuristic/sum(heuristics) for heuristic in heuristics]
-        try:
-            action = random.choices(actions, weights=weights, k=1)[0]
-        except:
-            print(weights)
-            print(heuristics)
-            print(actions)
-            raise
+        if sum(normalized_heuristics) == 0:
+            # no positive heuristics, use the deterministic greedy agent
+            return super(StochasticGreedyAgent, self)._get_best_action(actions, heuristics, info)        
+        
+        weights = [heuristic / sum(normalized_heuristics) for heuristic in normalized_heuristics]
+        action = random.choices(actions, weights=weights, k=1)[0]
 
         return action
 
@@ -126,16 +113,46 @@ class DQNAgent(ChineseCheckersAgent):
         self.device = torch.device(device)
         self.model.to(device)
 
-        self.train = False
+        self._train = True
 
-    def act(self, observation):
-        super(DQNAgent, self).act(observation)
-        return self._get_best_action(observation)
-    
     def train(self):
-        self.train = True
+        self._train = True
     
     def eval(self):
-        self.train = False
+        self._train = False
 
+    def act(self, observation, info) -> Action:
+        super(DQNAgent, self).act(observation, info)
+        if self._train:
+            temperature = 1.2
+        else:
+            temperature = 0.0
+        return self._get_best_action(observation, info, temperature)
     
+    def _get_best_action(self, observation, info, temperature) -> Action:
+        actions, visits = self._mcts(observation, info, 100)
+        return self._decision(self, actions, visits, temperature)
+
+    def _mcts(self, observation, info, iterations) -> tuple[list[Action], list[int]]:
+        pass
+
+    def _selection(self, observation):
+        pass
+
+    def _expansion(self, observation):
+        pass
+
+    def _backup(self, observation):
+        pass
+
+    def _decision(self, actions, visits, temperature) -> Action:
+        if temperature == 0.0:
+            return actions[np.argmax(visits)]
+        
+        probability_denominator = sum(visits ** (1 / temperature))
+        probabilites = [visit ** (1 / temperature) / probability_denominator for visit in visits]
+
+        return random.choices(actions, weights=probabilites, k=1)[0]
+
+    def _get_valid_actions(self, observation) -> list[Action]:
+        pass
