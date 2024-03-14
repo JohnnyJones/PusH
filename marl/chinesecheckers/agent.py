@@ -42,67 +42,61 @@ class DeterministicGreedyAgent(ChineseCheckersAgent):
     
     def act(self, observation, info) -> Action:
         super(DeterministicGreedyAgent, self).act(observation, info)
-        actions = info["valid_actions_list"]
+        actions: list[Action] = info["valid_actions_list"]
+        turn = info["turn"]
+        starting_positions = [Position(*info["id_to_position"][turn][action.piece_id]) for action in actions]
         if len(actions) == 0:
             raise ValueError("No valid actions available")
-        heuristics = [self._heuristic(observation, action, info) for action in actions]
-        return self._get_best_action(actions, heuristics, info)
+        heuristics = [self._heuristic(start, action.position, turn) for start, action in zip(starting_positions, actions)]
+        return self._get_best_action(actions, starting_positions, heuristics, turn)
     
-    def _get_best_action(self, actions: list[Action], heuristics: list, info) -> Action:       
-        # find all the actions with the best heuristic
-        best_heuristic = max(heuristics)
-        best_actions = [action for action, heuristic in zip(actions, heuristics) if heuristic == best_heuristic]
+    def _get_best_action(self, actions: list[Action], starting_position: list[Position], heuristics: list[float], turn: int) -> Action:       
+        # find the actions with the highest heuristic
+        max_heuristic = max(heuristics)
+        best_heuristic_indices = [i for i, heuristic in enumerate(heuristics) if heuristic == max_heuristic]
+        best_actions = [actions[i] for i in best_heuristic_indices]
 
+        # if there is one best action, return it
         if len(best_actions) == 1:
             return best_actions[0]
-        else:
-            # we have multiple best actions
-            # find furthest behind piece
-            def distance(player, piece_id):
-                position = Position(*info["id_to_position"][player][piece_id])
-                distance = position.x - position.y
-                if player == 1:
-                    distance = -distance
-                return distance
+        
+        # find the furthest behind piece that has the highest heuristic
+        distances = [self._distance_to_goal(turn, start) for start in starting_position]
+        max_distance = max(distances)
+        best_distance_indices = [i for i, distance in enumerate(distances) if distance == max_distance]
+        best_actions = [actions[i] for i in best_distance_indices]
 
-            # sort the best actions by the distance of the piece
-            # index 0 will be the furthest behind piece
-            best_piece_ids = [action.piece_id for action in best_actions]
-            best_piece_ids.sort(key=lambda piece_id: distance(info["turn"], piece_id))
+        # sample from the best actions
+        return random.choice(best_actions)
 
-            # sample actions belonging to the best piece
-            best_piece_actions = [action for action in best_actions if action.piece_id == best_piece_ids[0]]
-            best_action = random.choice(best_piece_actions)
-
-        return best_action
-
-    
-    def _heuristic(self, observation, action: Action, info):
-        # Moving further is better
-        turn = info["turn"]
-        starting_position = Position(*info["id_to_position"][turn][action.piece_id])
-        ending_position = action.position
-
+    @staticmethod
+    def _distance_to_goal(turn: int, position: Position):
         # due the ending positions being at the top right and bottom left of the board matrix,
         # higher x is better, lower y is better for player 0
         # lower x is better, higher y is better for player 1
-        heuristic = (starting_position.x - starting_position.y) - (ending_position.x - ending_position.y)
+        distance = position.x - position.y
         if turn == 1:
-            heuristic = -heuristic
+            distance = -distance
+        return distance
+    
+    def _heuristic(self, start: Position, end: Position, turn) -> float:
+        # Moving further is better
+        heuristic = (self._distance_to_goal(turn, start)) - (self._distance_to_goal(turn, end))
         return heuristic
 
 class StochasticGreedyAgent(DeterministicGreedyAgent):
     def __init__(self) -> None:
         super(StochasticGreedyAgent, self).__init__()
 
-    def _get_best_action(self, actions: list[Action], heuristics: list, info) -> Action:       
+    def _get_best_action(self, actions: list[Action], starting_position: list[Position], heuristics: list[float], turn: int) -> Action:       
         normalized_heuristics = [heuristic * (heuristic > 0) for heuristic in heuristics]
         
         if sum(normalized_heuristics) == 0:
             # no positive heuristics, use the deterministic greedy agent
-            return super(StochasticGreedyAgent, self)._get_best_action(actions, heuristics, info)        
+            return super()._get_best_action(actions, starting_position, heuristics, turn)        
         
-        weights = [heuristic / sum(normalized_heuristics) for heuristic in normalized_heuristics]
+        heuristic_sum = sum(normalized_heuristics)
+        weights = [heuristic / heuristic_sum for heuristic in normalized_heuristics]
         action = random.choices(actions, weights=weights, k=1)[0]
 
         return action
