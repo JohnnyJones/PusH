@@ -57,7 +57,7 @@ if __name__ == "__main__":
         try:
             winner = play(env, agents)
             if winner != -1:
-                winners.append(winner)
+                winners.append(type(agents[winner]).__name__)
             else:
                 ties += 1
         except Exception as e:
@@ -68,7 +68,8 @@ if __name__ == "__main__":
 
     env.close()
 
-    for i, agent in enumerate(agents):
-        print(f"{type(agent).__name__} wins : {winners.count(i)}, {winners.count(i)/episodes*100:.2f}%")
+    agent_names = [type(agent).__name__ for agent in agents]
+    for agent in agent_names:
+        print(f"{agent} wins : {winners.count(agent)}, {winners.count(agent)/episodes*100:.2f}%")
     print(f"Ties: {ties}")
     print(f"Errors: {errors}")
