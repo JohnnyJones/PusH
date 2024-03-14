@@ -149,20 +149,24 @@ class DeepMctsAgent(ChineseCheckersAgent):
         root = MctsTreeNode(Board(observation))
         for i in range(iterations):
             node: MctsTreeNode
-            self._selection(root, c=3.5, out=node)
+            path = self._selection(root, c=3.5, out=node)
             self._expansion(node, info["turn"])
+            self._backup(node, path)
 
-    def _selection(self, node: MctsTreeNode, out: MctsTreeNode, c: float = 3.5):
+    def _selection(self, node: MctsTreeNode, out: MctsTreeNode, c: float = 3.5, path: list[int] = []):
         if len(node.children) == 0:
-            return node
+            return path
         if node.board.check_win() != -1:
             # board is terminal
-            return node
+            return path
         total_child_visits = sum(child.visits for child in node.children)
         upper_confidence_bounds = [child.mean_value() + c * child.prior_probability * 
                                     np.sqrt(total_child_visits) /(child.visits +1) 
                                     for child in node.children]
-        return self._selection(node.children[np.argmax(upper_confidence_bounds)], out, c)
+        # get the index of the child with the highest upper confidence bound
+        index = np.argmax(upper_confidence_bounds)
+        path.append(self._selection(node.children[index], out, c))
+        return path
 
     def _expansion(self, node: MctsTreeNode, turn: int):
         if node.board.check_win() == -1:
@@ -173,12 +177,26 @@ class DeepMctsAgent(ChineseCheckersAgent):
             else:
                 # you won
                 node.accumulated_value += 1
-        # else:
-        #     # get priors and estimated value from nn
-        #     prior, value = self.model()
+        else:
+            # get priors and estimated value from nn
+            value, prior = self.model()
 
-    def _backup(self, observation):
-        pass
+            # get valid actions
+            valid_actions = node.board.get_valid_actions()
+
+            # create children
+            for action in valid_actions:
+                new_board = node.board.copy()
+                new_board.move(action)
+                new_node = MctsTreeNode(new_board)
+                new_node.prior_probability = prior[action]
+                node.add_child(new_node)
+
+    def _backup(self, node: MctsTreeNode, path: list[int]):
+        for index in path:
+            node = node.children[index]
+            node.visits += 1
+            node.accumulated_value = node.mean_value()
 
     def _decision(self, actions, visits, temperature) -> Action:
         if temperature == 0.0:
