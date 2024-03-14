@@ -4,7 +4,7 @@ import gymnasium as gym
 import numpy as np
 import random
 
-from agentdqn import DQN
+from deepmctsmodel import DeepMctsModel
 from collections import namedtuple
 from data import Action, Position
 from chinesecheckers import Board, ChineseCheckersEnv
@@ -124,10 +124,10 @@ class MctsTreeNode:
     def mean_value(self):
         return self.accumulated_value / self.visits
 
-class DQNAgent(ChineseCheckersAgent):
+class DeepMctsAgent(ChineseCheckersAgent):
     def __init__(self, device: str = 'cpu') -> None:
-        super(DQNAgent, self).__init__()
-        self.model = DQN()
+        super(DeepMctsAgent, self).__init__()
+        self.model = DeepMctsModel()
         self.device = torch.device(device)
         self.model.to(device)
 
@@ -140,7 +140,7 @@ class DQNAgent(ChineseCheckersAgent):
         self._train = False
 
     def act(self, observation, info) -> Action:
-        super(DQNAgent, self).act(observation, info)
+        super(DeepMctsAgent, self).act(observation, info)
         if self._train:
             temperature = 1.2
         else:

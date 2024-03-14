@@ -63,9 +63,9 @@ class PolicyHead(nn.Module):
         x = self.softmax1(x)
         return x
 
-class DQN(nn.Module):
+class DeepMctsModel(nn.Module):
     def __init__(self) -> None:
-        super(DQN, self).__init__()
+        super(DeepMctsModel, self).__init__()
 
         # input board: 7x7x7 tensor
         # 3x3 conv, 64 filters, no pad
