@@ -179,7 +179,7 @@ class DeepMctsAgent(ChineseCheckersAgent):
                 node.accumulated_value = +1
         else:
             # get priors and estimated value from nn
-            value, prior = self.model()
+            value, prior = self.model(node.board.to_tensor())
             node.accumulated_value = value
 
             # get valid actions
