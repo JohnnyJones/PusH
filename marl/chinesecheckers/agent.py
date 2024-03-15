@@ -109,12 +109,12 @@ class MctsTreeNode:
         self.visits: int = 0
         self.accumulated_value: float = 0.0
         self.prior_probability: float = 0.0
+        self.parent: MctsTreeNode = None
+        self.terminal: bool = False
 
     def add_child(self, child_node):
         self.children.append(child_node)
-    
-    def remove_child(self, child_node):
-        self.children.remove(child_node)
+        child_node.parent = self
     
     def mean_value(self):
         return self.accumulated_value / self.visits
@@ -143,61 +143,74 @@ class DeepMctsAgent(ChineseCheckersAgent):
         return self._get_best_action(observation, info, temperature)
     
     def _get_best_action(self, observation, info, temperature) -> Action:
-        actions, visits = self._mcts(observation, info, 100)
+        actions, visits = self._mcts(info["board"], 180)
         return self._decision(self, actions, visits, temperature)
 
-    def _mcts(self, observation, info, iterations) -> tuple[list[Action], list[int]]:
-        root = MctsTreeNode(Board(observation))
+    def _mcts(self, board: Board, iterations: int) -> tuple[list[Action], list[int]]:
+        root = MctsTreeNode(board)
         for i in range(iterations):
             node: MctsTreeNode
-            path = self._selection(root, c=3.5, out=node)
-            self._expansion(node, info["turn"])
-            self._backup(node, path)
+            selection = self._selection(root, c=3.5, out=node)
+            self._expansion(selection, board.turn)
+            self._backup(selection)
 
-    def _selection(self, node: MctsTreeNode, out: MctsTreeNode, c: float = 3.5, path: list[int] = []):
+    def _selection(self, node: MctsTreeNode, out: MctsTreeNode, c: float = 3.5):
         if len(node.children) == 0:
-            return path
-        if node.board.check_win() != -1:
+            return node
+        if node.terminal:
             # board is terminal
-            return path
+            return node
         total_child_visits = sum(child.visits for child in node.children)
         upper_confidence_bounds = [child.mean_value() + c * child.prior_probability * 
                                     np.sqrt(total_child_visits) /(child.visits +1) 
                                     for child in node.children]
-        # get the index of the child with the highest upper confidence bound
-        index = np.argmax(upper_confidence_bounds)
-        path.append(self._selection(node.children[index], out, c))
-        return path
+        # continue with the child with the highest upper confidence bound        
+        return self._selection(node.children[np.argmax(upper_confidence_bounds)], out, c)
 
     def _expansion(self, node: MctsTreeNode, turn: int):
         if node.board.check_win() == -1:
+            node.terminal = True
             # use raw win vales
             if node.board.turn == turn:
                 # you lost
-                node.accumulated_value -= 1
+                node.accumulated_value = -1
             else:
                 # you won
-                node.accumulated_value += 1
+                node.accumulated_value = +1
         else:
             # get priors and estimated value from nn
             value, prior = self.model()
+            node.accumulated_value = value
 
             # get valid actions
             valid_actions = node.board.get_valid_actions()
 
             # create children
             for action in valid_actions:
-                new_board = node.board.copy()
-                new_board.move(action)
+                new_board: Board = node.board.copy()
+                new_board.move_piece(*action)
                 new_node = MctsTreeNode(new_board)
                 new_node.prior_probability = prior[action]
                 node.add_child(new_node)
 
-    def _backup(self, node: MctsTreeNode, path: list[int]):
-        for index in path:
-            node = node.children[index]
-            node.visits += 1
-            node.accumulated_value = node.mean_value()
+    def _backup(self, leaf: MctsTreeNode, node: MctsTreeNode):
+        node.visits += 1
+
+        # accumulate value
+        if leaf.terminal:
+            if node.board.turn == leaf.board.turn:
+                node.accumulated_value -= leaf.accumulated_value
+            else:
+                node.accumulated_value += leaf.accumulated_value
+        else:
+            if node.board.turn == leaf.board.turn:
+                node.accumulated_value += leaf.accumulated_value
+            else:
+                node.accumulated_value -= leaf.accumulated_value
+        
+        # continue with the parent
+        if node.parent is not None:
+            self._backup(leaf, node.parent)
 
     def _decision(self, actions, visits, temperature) -> Action:
         if temperature == 0.0:
