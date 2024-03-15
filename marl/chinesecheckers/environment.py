@@ -189,7 +189,7 @@ class ChineseCheckersEnv(gym.Env):
         
         return observation, info
     
-    def step(self, action):
+    def step(self, action: Action):
         piece_id, move_position = action
         move_position = Position(*move_position)
         valid_actions = self.board.get_action_mask(self.board.turn)
@@ -221,5 +221,5 @@ class ChineseCheckersEnv(gym.Env):
 
 register(
     id="ChineseCheckers-v0",
-    entry_point="chinesecheckers:ChineseCheckersEnv",
+    entry_point="environment:ChineseCheckersEnv",
 )
