@@ -58,6 +58,8 @@ if __name__ == "__main__":
             winner = play(env, agents)
             if winner != -1:
                 winners.append(type(agents[winner]).__name__)
+                if args.render is not None:
+                    print(f"Winner: {type(agents[winner]).__name__}")
             else:
                 ties += 1
         except Exception as e:
@@ -65,6 +67,7 @@ if __name__ == "__main__":
                 break
             errors += 1
             print(e)
+            # raise e
 
     env.close()
 
