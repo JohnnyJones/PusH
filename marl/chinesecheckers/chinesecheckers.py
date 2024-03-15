@@ -98,7 +98,7 @@ class Board:
         self.position_to_id[player_id, to_position.x, to_position.y] = piece_id
         self.id_to_position[player_id, piece_id] = to_position
 
-        self.turn += 1
+        self.turn = 1 - self.turn
     
     def check_win(self):
         for player_id in range(2):
@@ -416,6 +416,7 @@ class ChineseCheckersEnv(gym.Env):
             "valid_actions_list": self.board.get_valid_actions_list(),
             "id_to_position": self.board.id_to_position,
             "winner": self.board.check_win(),
+            "board": self.board.copy(),
         }
 
     def reset(self, seed=None, options=None):
