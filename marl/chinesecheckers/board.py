@@ -76,21 +76,28 @@ class Board:
         new_board.board = self.board.copy()
         new_board.position_to_id = self.position_to_id.copy()
         new_board.id_to_position = self.id_to_position.copy()
+        new_board.history = self.history.copy()
         return new_board
 
     def to_tensor(self) -> torch.Tensor:        
         if (n := len(self.history)) != 3:
             raise ValueError(f"History must have 3 states, got {n}")
 
+
         # concatenate history into single ndarray
         if self.turn == 0:
             # stack as is
-            history = np.stack(self.history)
+            history = []
+            for state in self.history:
+                history += [*state]
+            history = np.stack(history)
         else:
             # reverse the order of each state
-            history = [state[::-1] for state in self.history]
+            reverse_history = [state[::-1] for state in self.history]
+            for state in reverse_history:
+                history += [*state]
             history = np.stack(history)
-        
+
         # add layer for player turn
         history = np.concatenate((history, np.ones((1, 7, 7), dtype=np.int8) * self.turn))
 
