@@ -68,6 +68,8 @@ class Board:
         for player_id in range(2):
             for i, position in enumerate(self.starting_positions(player_id)):
                 self.add_piece(player_id, i, Position(*position))
+        
+        self.turn = 0
     
     def copy(self):
         new_board = Board()
