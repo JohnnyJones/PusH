@@ -1,6 +1,4 @@
 import torch
-import torch.nn as nn
-import gymnasium as gym
 import numpy as np
 import random
 import pandas as pd
@@ -8,7 +6,7 @@ import pandas as pd
 from deepmctsmodel import DeepMctsModel
 from collections import namedtuple
 from data import Action, Position
-from chinesecheckers import Board, ChineseCheckersEnv
+from board import Board
 
 class ChineseCheckersAgent():
     Action = namedtuple("Action", ["piece_id", "position"])

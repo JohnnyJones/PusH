@@ -1,7 +1,7 @@
 import gymnasium as gym
 import random
 
-from chinesecheckers import ChineseCheckersEnv
+from env import ChineseCheckersEnv
 from data import Action, Position
 from agent import ChineseCheckersAgent, RandomAgent, DeterministicGreedyAgent, StochasticGreedyAgent
 from tqdm import tqdm
