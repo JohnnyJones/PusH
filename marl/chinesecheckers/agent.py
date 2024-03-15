@@ -3,6 +3,7 @@ import torch.nn as nn
 import gymnasium as gym
 import numpy as np
 import random
+import pandas as pd
 
 from deepmctsmodel import DeepMctsModel
 from collections import namedtuple
@@ -51,23 +52,23 @@ class DeterministicGreedyAgent(ChineseCheckersAgent):
         return self._get_best_action(actions, starting_positions, heuristics, turn)
     
     def _get_best_action(self, actions: list[Action], starting_position: list[Position], heuristics: list[float], turn: int) -> Action:       
-        # find the actions with the highest heuristic
-        max_heuristic = max(heuristics)
-        best_heuristic_indices = [i for i, heuristic in enumerate(heuristics) if heuristic == max_heuristic]
-        best_actions = [actions[i] for i in best_heuristic_indices]
-
-        # if there is one best action, return it
-        if len(best_actions) == 1:
-            return best_actions[0]
-        
-        # find the furthest behind piece that has the highest heuristic
+        # join into a dataframe
         distances = [self._distance_to_goal(turn, start) for start in starting_position]
-        max_distance = max(distances)
-        best_distance_indices = [i for i, distance in enumerate(distances) if distance == max_distance]
-        best_actions = [actions[i] for i in best_distance_indices]
+        df = pd.DataFrame({"action": actions, "start": starting_position, "heuristic": heuristics, "distance": distances})
 
-        # sample from the best actions
-        return random.choice(best_actions)
+        # filter by the best heuristic
+        df = df.sort_values(by="heuristic", ascending=False)
+        df = df[df["heuristic"] == df["heuristic"].max()]
+
+        # if there's only one action with the best heuristic, return it
+        if len(df) == 1:
+            return df.iloc[0]["action"]
+        
+        # filter by the worst starting position
+        df = df[df["distance"] == df["distance"].max()]
+        
+        # sample from the best actions with the worst starting position
+        return random.choice(df["action"].tolist())
 
     @staticmethod
     def _distance_to_goal(turn: int, position: Position):
