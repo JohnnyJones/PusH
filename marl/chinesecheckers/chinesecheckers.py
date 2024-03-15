@@ -110,7 +110,7 @@ class Board:
 
         return moves
     
-    def get_valid_actions_list(self, player_id):
+    def get_valid_actions_list(self, player_id) -> list[Action]:
         actions = []
         for piece_id in range(6):
             position = Position(*self.id_to_position[player_id, piece_id])
@@ -121,7 +121,7 @@ class Board:
                 actions.append(action)
         return actions
 
-    def get_valid_actions_dict(self, player_id):
+    def get_valid_actions_dict(self, player_id) -> dict[int, list[Position]]:
         actions = {}
         for piece_id in range(6):
             position = Position(*self.id_to_position[player_id, piece_id])
@@ -234,12 +234,13 @@ class Board:
 class ChineseCheckersEnv(gym.Env):
     metadata = {
         "render_modes": ["human", "terminal"],
-        "render_fps": 4,
+        "render_fps": 16,
     }
 
     COLORS = {
         "BACKGROUND": (56,  30,  26 ),
         "EMPTY":      (81,  56,  46 ),
+        "HIGHLIGHT":  (100, 100, 100),
         "P0":         (0,   0,   0  ),
         "P1":         (255, 255, 255),
         "P2":         (255, 0,   0  ),
@@ -256,6 +257,8 @@ class ChineseCheckersEnv(gym.Env):
 
         # action space is 6 pieces, 7x7 board destinations
         self.action_space = spaces.MultiDiscrete([6, 7, 7])
+
+        self.last_action = None
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -283,7 +286,7 @@ class ChineseCheckersEnv(gym.Env):
             print("]")
         print()
     
-    def _render_frame(self):
+    def _render_frame(self, selection=False):
         if self.window is None:
             pygame.init()
             pygame.display.init()
@@ -318,6 +321,7 @@ class ChineseCheckersEnv(gym.Env):
                     0
                 )
 
+        # draw the pieces
         for x in range(7):
             for y in range(7):
                 position = piece_position(x, y)
@@ -343,9 +347,38 @@ class ChineseCheckersEnv(gym.Env):
                     text_rect = text.get_rect(center=position)
                     self.window.blit(text, text_rect)
         
+        if selection:
+            # draw the valid actions for the selected piece
+            if self.last_action is not None:
+                piece_id, move_position = self.last_action
+                move_position = Position(*move_position)
+                position = Position(*self.board.id_to_position[self.turn, piece_id])
+                valid_actions = self.board.get_valid_actions_dict(self.turn)[piece_id]
+                # highlight the selected piece
+                pygame.draw.circle(
+                    self.window,
+                    self.COLORS["HIGHLIGHT"],
+                    piece_position(*position),
+                    piece_radius,
+                    5
+                )
+                # highlight the valid actions
+                for valid_action in valid_actions:
+                    pygame.draw.circle(
+                        self.window,
+                        self.COLORS["HIGHLIGHT"],
+                        piece_position(*valid_action),
+                        piece_radius,
+                        5
+                    )
+
+        # render the frame
         pygame.event.pump()
         pygame.display.update()
         self.clock.tick(self.metadata["render_fps"])
+    
+    def _render_selection(self):
+        self._render_frame(selection=True)
     
     def invert_color(self, color):
         return tuple(255 - c for c in color)
@@ -384,6 +417,9 @@ class ChineseCheckersEnv(gym.Env):
         valid_actions = self.board.get_action_mask(self.turn)
         if not valid_actions[piece_id, move_position.x, move_position.y]:
             raise ValueError("Invalid action")
+        self.last_action = action
+        if self.render_mode == "human":
+            self._render_selection()
         self.board.move_piece(*(self.turn, *action))
 
         reward = 0
