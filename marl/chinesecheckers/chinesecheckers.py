@@ -3,16 +3,18 @@ os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
 import numpy as np
 import pygame
 import gymnasium as gym
+import torch
 
-from collections import namedtuple
 from gymnasium import spaces
 from gymnasium.envs.registration import register
 from data import Action, Position
+from collections import deque
 
 class Board: 
     # game board is 7x7 matrix (diamond-shaped board) with 2 players
     def __init__(self, start=None):
         self.turn = 0
+        self.history = deque(maxlen=3)
         if start:
             self.position_to_id = start
             self.board = self._position_matrix_to_board_matrix(start)
@@ -70,6 +72,7 @@ class Board:
                 self.add_piece(player_id, i, Position(*position))
         
         self.turn = 0
+        self.history.clear()
     
     def copy(self):
         new_board = Board()
@@ -77,6 +80,9 @@ class Board:
         new_board.position_to_id = self.position_to_id.copy()
         new_board.id_to_position = self.id_to_position.copy()
         return new_board
+
+    def to_tensor(self) -> torch.Tensor:
+        pass
 
     def add_piece(self, player_id, piece_id, position: Position):
         self.board[position] = player_id
@@ -101,6 +107,9 @@ class Board:
         self.id_to_position[player_id, piece_id] = to_position
 
         self.turn = 1 - self.turn
+        
+        # add current state to game history
+        self.history.appendleft(self.position_to_id)
     
     def check_win(self):
         for player_id in range(2):
