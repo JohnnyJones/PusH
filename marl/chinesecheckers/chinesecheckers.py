@@ -69,12 +69,22 @@ class Board:
             for i, position in enumerate(self.starting_positions(player_id)):
                 self.add_piece(player_id, i, Position(*position))
     
+    def copy(self):
+        new_board = Board()
+        new_board.board = self.board.copy()
+        new_board.position_to_id = self.position_to_id.copy()
+        new_board.id_to_position = self.id_to_position.copy()
+        return new_board
+
     def add_piece(self, player_id, piece_id, position: Position):
         self.board[position] = player_id
         self.position_to_id[player_id, position.x, position.y] = piece_id
         self.id_to_position[player_id, piece_id] = position
 
-    def move_piece(self, player_id, piece_id, to_position: Position):
+    def move_piece(self, piece_id, to_position: Position, player_id=None):
+        if player_id is None:
+            player_id = self.turn
+        
         # convert to Position object
         to_position = Position(*to_position)
         
@@ -97,7 +107,10 @@ class Board:
                 return player_id
         return -1
 
-    def get_action_mask(self, player_id):
+    def get_action_mask(self, player_id=None):
+        if player_id is None:
+            player_id = self.turn
+        
         moves = np.zeros((6, 7, 7), dtype=np.bool_)
         
         # rolling
@@ -110,7 +123,10 @@ class Board:
 
         return moves
     
-    def get_valid_actions_list(self, player_id) -> list[Action]:
+    def get_valid_actions_list(self, player_id=None) -> list[Action]:
+        if player_id is None:
+            player_id = self.turn
+        
         actions = []
         for piece_id in range(6):
             position = Position(*self.id_to_position[player_id, piece_id])
@@ -121,7 +137,10 @@ class Board:
                 actions.append(action)
         return actions
 
-    def get_valid_actions_dict(self, player_id) -> dict[int, list[Position]]:
+    def get_valid_actions_dict(self, player_id=None) -> dict[int, list[Position]]:
+        if player_id is None:
+            player_id = self.turn
+        
         actions = {}
         for piece_id in range(6):
             position = Position(*self.id_to_position[player_id, piece_id])
@@ -267,7 +286,6 @@ class ChineseCheckersEnv(gym.Env):
         self.clock = None
 
         self.board = Board()
-        self.turn = 0
 
     def _render(self):
         if self.render_mode == "human":
@@ -352,8 +370,8 @@ class ChineseCheckersEnv(gym.Env):
             if self.last_action is not None:
                 piece_id, move_position = self.last_action
                 move_position = Position(*move_position)
-                position = Position(*self.board.id_to_position[self.turn, piece_id])
-                valid_actions = self.board.get_valid_actions_dict(self.turn)[piece_id]
+                position = Position(*self.board.id_to_position[self.board.turn, piece_id])
+                valid_actions = self.board.get_valid_actions_dict()[piece_id]
                 # highlight the selected piece
                 pygame.draw.circle(
                     self.window,
@@ -392,10 +410,10 @@ class ChineseCheckersEnv(gym.Env):
 
     def _get_info(self):
         return {
-            "turn": self.turn,
-            "action_mask": self.board.get_action_mask(self.turn),
-            "valid_actions_dict": self.board.get_valid_actions_dict(self.turn),
-            "valid_actions_list": self.board.get_valid_actions_list(self.turn),
+            "turn": self.board.turn,
+            "action_mask": self.board.get_action_mask(),
+            "valid_actions_dict": self.board.get_valid_actions_dict(),
+            "valid_actions_list": self.board.get_valid_actions_list(),
             "id_to_position": self.board.id_to_position,
             "winner": self.board.check_win(),
         }
@@ -414,20 +432,19 @@ class ChineseCheckersEnv(gym.Env):
     def step(self, action):
         piece_id, move_position = action
         move_position = Position(*move_position)
-        valid_actions = self.board.get_action_mask(self.turn)
+        valid_actions = self.board.get_action_mask(self.board.turn)
         if not valid_actions[piece_id, move_position.x, move_position.y]:
             raise ValueError("Invalid action")
         self.last_action = action
         if self.render_mode == "human":
             self._render_selection()
-        self.board.move_piece(*(self.turn, *action))
+        self.board.move_piece(*action)
 
         reward = 0
         winner = self.board.check_win()
         if winner != -1:
             reward = (-1)**(1-winner)
 
-        self.turn = 1 - self.turn
         terminated = winner != -1
         truncated = False
         observation = self._get_obs()
