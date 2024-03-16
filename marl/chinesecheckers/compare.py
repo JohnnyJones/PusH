@@ -3,7 +3,7 @@ import random
 
 from environment import ChineseCheckersEnv
 from data import Action, Position
-from agent import ChineseCheckersAgent, RandomAgent, DeterministicGreedyAgent, StochasticGreedyAgent
+from agent import ChineseCheckersAgent, RandomAgent, DeterministicGreedyAgent, StochasticGreedyAgent, DeepMctsAgent
 from tqdm import tqdm
 from argparse import ArgumentParser
 from collections import deque
@@ -38,10 +38,11 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("-e", "--episodes", type=int, default=1000)
     parser.add_argument("-r", "--render", type=str, default=None)
+    parser.add_argument("-t", "--throw", action="store_true")
     args = parser.parse_args()
 
     env = gym.make("ChineseCheckers-v0", render_mode=args.render)
-    agents: list[ChineseCheckersAgent] = [StochasticGreedyAgent(), DeterministicGreedyAgent()]
+    agents: list[ChineseCheckersAgent] = [DeepMctsAgent(), DeterministicGreedyAgent()]
     episodes = args.episodes
     winners = []
     errors = 0
@@ -66,8 +67,10 @@ if __name__ == "__main__":
             if e == KeyboardInterrupt:
                 break
             errors += 1
-            print(e)
-            # raise e
+            if args.throw:
+                raise e
+            else:
+                print(e)
 
     env.close()
 
