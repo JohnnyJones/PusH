@@ -99,7 +99,7 @@ class Board:
             history = np.stack(history)
 
         # add layer for player turn
-        history = np.concatenate((history, np.ones((1, 7, 7), dtype=np.int8) * self.turn))
+        history = np.concatenate((history, np.ones((1, 7, 7), dtype=np.int8) * self.turn)).astype(dtype=np.float32, copy=False)
 
         return torch.from_numpy(history)
 
