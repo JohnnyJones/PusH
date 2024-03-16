@@ -110,16 +110,19 @@ class MctsTreeNode:
         self.parent: MctsTreeNode = None
         self.terminal: bool = False
 
-    def add_child(self, child_node):
+    def __repr__(self):
+        return f"[Node, ({self.visits}, {self.children})]"
+
+    def add_child(self, child_node, action: Action):
         self.children.append(child_node)
         child_node.parent = self
+        child_node.action = action
     
     def mean_value(self):
         return self.accumulated_value / self.visits
 
 class DeepMctsAgent(ChineseCheckersAgent):
     def __init__(self, device: str = 'cpu') -> None:
-        super(DeepMctsAgent, self).__init__()
         self.model = DeepMctsModel()
         self.device = torch.device(device)
         self.model.to(device)
@@ -142,17 +145,18 @@ class DeepMctsAgent(ChineseCheckersAgent):
     
     def _get_best_action(self, observation, info, temperature) -> Action:
         actions, visits = self._mcts(info["board"], 180)
-        return self._decision(self, actions, visits, temperature)
+        return self._decision(actions, visits, temperature)
 
     def _mcts(self, board: Board, iterations: int) -> tuple[list[Action], list[int]]:
         root = MctsTreeNode(board)
-        for i in range(iterations):
-            node: MctsTreeNode
-            selection = self._selection(root, c=3.5, out=node)
+        for _ in range(iterations):
+            selection = self._selection(root, c=3.5)
             self._expansion(selection, board.turn)
-            self._backup(selection)
+            self._backup(selection, selection.parent)
+        
+        return [child.action for child in root.children], [child.visits for child in root.children]
 
-    def _selection(self, node: MctsTreeNode, out: MctsTreeNode, c: float = 3.5):
+    def _selection(self, node: MctsTreeNode, c: float = 3.5):
         if len(node.children) == 0:
             return node
         if node.terminal:
@@ -163,10 +167,11 @@ class DeepMctsAgent(ChineseCheckersAgent):
                                     np.sqrt(total_child_visits) /(child.visits +1) 
                                     for child in node.children]
         # continue with the child with the highest upper confidence bound        
-        return self._selection(node.children[np.argmax(upper_confidence_bounds)], out, c)
+        return self._selection(node.children[np.argmax(upper_confidence_bounds)], c)
 
     def _expansion(self, node: MctsTreeNode, turn: int):
-        if node.board.check_win() == -1:
+        if node.board.check_win() != -1:
+            print("Node cannot be expanded")
             node.terminal = True
             # use raw win vales
             if node.board.turn == turn:
@@ -176,12 +181,14 @@ class DeepMctsAgent(ChineseCheckersAgent):
                 # you won
                 node.accumulated_value = +1
         else:
+            # print("Expanding node")
+            print(f"Before: {node}")
             # get priors and estimated value from nn
             value, prior = self.model(node.board.to_tensor())
             node.accumulated_value = value
 
             # get valid actions
-            valid_actions = node.board.get_valid_actions()
+            valid_actions = node.board.get_valid_actions_list()
 
             # create children
             for action in valid_actions:
@@ -189,9 +196,13 @@ class DeepMctsAgent(ChineseCheckersAgent):
                 new_board.move_piece(*action)
                 new_node = MctsTreeNode(new_board)
                 new_node.prior_probability = prior[action]
-                node.add_child(new_node)
+                node.add_child(new_node, action)
+            print(f"After: {node}")
 
     def _backup(self, leaf: MctsTreeNode, node: MctsTreeNode):
+        if node is None:
+            return
+        
         node.visits += 1
 
         # accumulate value
@@ -214,7 +225,8 @@ class DeepMctsAgent(ChineseCheckersAgent):
         if temperature == 0.0:
             return actions[np.argmax(visits)]
         
-        probability_denominator = sum(visits ** (1 / temperature))
-        probabilites = [visit ** (1 / temperature) / probability_denominator for visit in visits]
+        probability_denominator = sum([visit_count ** (1 / temperature) for visit_count in visits])
+        probabilities = [visit ** (1 / temperature) / probability_denominator for visit in visits]
 
-        return random.choices(actions, weights=probabilites, k=1)[0]
+        print(probabilities)
+        return random.choices(actions, weights=probabilities, k=1)[0]
