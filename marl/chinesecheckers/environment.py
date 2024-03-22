@@ -190,11 +190,8 @@ class ChineseCheckersEnv(gym.Env):
         return observation, info
     
     def step(self, action: Action):
-        piece_id, move_position = action
-        move_position = Position(*move_position)
-        valid_actions = self.board.get_action_mask(self.board.turn)
-        if not valid_actions[piece_id, move_position.x, move_position.y]:
-            raise ValueError("Invalid action")
+        if action not in self.board.get_valid_actions_list():
+            raise ValueError(f"Invalid action: {action}")
         self.last_action = action
         if self.render_mode == "human":
             self._render_selection()
