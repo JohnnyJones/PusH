@@ -83,11 +83,10 @@ class Board:
         if (n := len(self.history)) != 3:
             raise ValueError(f"History must have 3 states, got {n}")
 
-
+        history = []
         # concatenate history into single ndarray
         if self.turn == 0:
             # stack as is
-            history = []
             for state in self.history:
                 history += [*state]
             history = np.stack(history)
@@ -101,7 +100,7 @@ class Board:
         # add layer for player turn
         history = np.concatenate((history, np.ones((1, 7, 7), dtype=np.int8) * self.turn)).astype(dtype=np.float32, copy=False)
 
-        return torch.from_numpy(history)
+        return torch.from_numpy(history).detach()
 
     def add_piece(self, player_id, piece_id, position: Position):
         self.board[position] = player_id
