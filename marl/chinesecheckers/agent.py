@@ -119,6 +119,8 @@ class MctsTreeNode:
         child_node.action = action
     
     def mean_value(self):
+        if self.visits == 0.0:
+            return 0.0
         return self.accumulated_value / self.visits
 
 class DeepMctsAgent(ChineseCheckersAgent):
@@ -141,11 +143,13 @@ class DeepMctsAgent(ChineseCheckersAgent):
             temperature = 1.2
         else:
             temperature = 0.0
-        return self._get_best_action(observation, info, temperature)
+        board: Board = info["board"]
+        return self._get_best_action(board, temperature)
     
-    def _get_best_action(self, observation, info, temperature) -> Action:
-        actions, visits = self._mcts(info["board"], 180)
-        return self._decision(actions, visits, temperature)
+    def _get_best_action(self, board: Board, temperature) -> Action:
+        actions, visits = self._mcts(board, 180)
+        action = self._decision(actions, visits, temperature)
+        return action
 
     def _mcts(self, board: Board, iterations: int) -> tuple[list[Action], list[int]]:
         root = MctsTreeNode(board)
@@ -153,7 +157,6 @@ class DeepMctsAgent(ChineseCheckersAgent):
             selection = self._selection(root, c=3.5)
             self._expansion(selection, board.turn)
             self._backup(selection, selection.parent)
-        
         return [child.action for child in root.children], [child.visits for child in root.children]
 
     def _selection(self, node: MctsTreeNode, c: float = 3.5):
@@ -163,15 +166,15 @@ class DeepMctsAgent(ChineseCheckersAgent):
             # board is terminal
             return node
         total_child_visits = sum(child.visits for child in node.children)
-        upper_confidence_bounds = [child.mean_value() + c * child.prior_probability * 
-                                    np.sqrt(total_child_visits) /(child.visits +1) 
-                                    for child in node.children]
-        # continue with the child with the highest upper confidence bound        
+        n = 0
+        upper_confidence_bounds = np.array([child.mean_value() + c * child.prior_probability * 
+                                    np.sqrt(total_child_visits) /(child.visits + 1) 
+                                    for child in node.children])
+        # continue with the child with the highest upper confidence bound     
         return self._selection(node.children[np.argmax(upper_confidence_bounds)], c)
 
     def _expansion(self, node: MctsTreeNode, turn: int):
         if node.board.check_win() != -1:
-            print("Node cannot be expanded")
             node.terminal = True
             # use raw win vales
             if node.board.turn == turn:
@@ -181,11 +184,13 @@ class DeepMctsAgent(ChineseCheckersAgent):
                 # you won
                 node.accumulated_value = +1
         else:
-            # print("Expanding node")
-            print(f"Before: {node}")
             # get priors and estimated value from nn
-            value, prior = self.model(node.board.to_tensor())
-            node.accumulated_value = value
+            # if self.train:
+            #     value, prior = self.model(node.board.to_tensor())
+            # else:
+            with torch.no_grad():
+                value, prior = self.model(node.board.to_tensor())
+            node.accumulated_value = value.item()
 
             # get valid actions
             valid_actions = node.board.get_valid_actions_list()
@@ -195,9 +200,8 @@ class DeepMctsAgent(ChineseCheckersAgent):
                 new_board: Board = node.board.copy()
                 new_board.move_piece(*action)
                 new_node = MctsTreeNode(new_board)
-                new_node.prior_probability = prior[action]
+                new_node.prior_probability = prior[action.piece_id, action.position.x, action.position.y]
                 node.add_child(new_node, action)
-            print(f"After: {node}")
 
     def _backup(self, leaf: MctsTreeNode, node: MctsTreeNode):
         if node is None:
@@ -221,12 +225,11 @@ class DeepMctsAgent(ChineseCheckersAgent):
         if node.parent is not None:
             self._backup(leaf, node.parent)
 
-    def _decision(self, actions, visits, temperature) -> Action:
+    def _decision(self, actions, visits, temperature) -> Action:       
         if temperature == 0.0:
             return actions[np.argmax(visits)]
         
         probability_denominator = sum([visit_count ** (1 / temperature) for visit_count in visits])
         probabilities = [visit ** (1 / temperature) / probability_denominator for visit in visits]
 
-        print(probabilities)
         return random.choices(actions, weights=probabilities, k=1)[0]
