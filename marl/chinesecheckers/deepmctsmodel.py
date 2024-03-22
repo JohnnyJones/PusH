@@ -89,7 +89,7 @@ class DeepMctsModel(nn.Module):
         self.policy_head = PolicyHead()
         
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         # using skip connections
         x = self.conv1(x)
         x = self.block1(x) + x
@@ -103,5 +103,6 @@ class DeepMctsModel(nn.Module):
         x = self.block9(x) + x
         value = self.value_head(x)
         policy = self.policy_head(x)
+        policy = policy.view(6, 7, 7)
         return value, policy
 
