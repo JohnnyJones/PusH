@@ -26,20 +26,21 @@ class ValueHead(nn.Module):
     def __init__(self) -> None:
         super(ValueHead, self).__init__()
 
-        # 1x1 conv, 1 filter, no pad
+        # 1x1 conv, 1 filter, no pad, flatten for use in FC layer
         self.conv1 = nn.Conv2d(in_channels=64, out_channels=1, kernel_size=1, padding=0)
         self.relu1 = nn.ReLU()
         # 32 units FC, ReLU
-        # TODO: verify this uses the right shape
-        self.fc1 = nn.Linear(5, 32)
+        self.fc1 = nn.Linear(in_features=5*5, out_features=32)
         self.relu2 = nn.ReLU()
         # 1 unit FC, tanh
         self.fc2 = nn.Linear(32, 1)
         self.tanh1 = nn.Tanh()
     
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         x = self.conv1(x)
         x = self.relu1(x)
+        # TODO: verify flatten works with batch
+        x = x.view(x.numel()) # fully flatten
         x = self.fc1(x)
         x = self.relu2(x)
         x = self.fc2(x)
@@ -54,14 +55,14 @@ class PolicyHead(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=64, out_channels=16, kernel_size=1, padding=0)
         self.relu1 = nn.ReLU()
         # 294 units FC, softmax
-        # TODO: verify channels
-        self.fc1 = nn.Linear(5, 294)
-        self.softmax1 = nn.Softmax(dim=1)
+        self.fc1 = nn.Linear(in_features=5*5*16, out_features=294)
+        self.softmax1 = nn.Softmax(dim=0)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         x = self.conv1(x)
         x = self.relu1(x)
-        print(x.shape)
+        # TODO: verify flatten works with batch
+        x = x.view(x.numel()) # fully flatten
         x = self.fc1(x)
         x = self.softmax1(x)
         return x
