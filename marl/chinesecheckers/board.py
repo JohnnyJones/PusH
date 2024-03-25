@@ -133,7 +133,9 @@ class Board:
     def check_win(self):
         for player_id in range(2):
             win_positions = self.win_positions(player_id)
-            if all([self.board[i] == player_id for i in win_positions]):
+
+            # all win positions must be occupied and winning player must have pieces in the win positions
+            if any([self.board[i] == player_id for i in win_positions]) and all([self.board[i] != -1 for i in win_positions]):
                 return player_id
         return -1
 
