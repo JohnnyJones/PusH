@@ -77,6 +77,7 @@ class Board:
         new_board.position_to_id = self.position_to_id.copy()
         new_board.id_to_position = self.id_to_position.copy()
         new_board.history = self.history.copy()
+        new_board.turn = self.turn
         return new_board
 
     def to_tensor(self) -> torch.Tensor:        
