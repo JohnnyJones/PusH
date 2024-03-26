@@ -53,15 +53,7 @@ class ChineseCheckersEnv(gym.Env):
             self._render_terminal()
     
     def _render_terminal(self):
-        for row in self.board.board:
-            print("[", end=" ")
-            for cell in row:
-                if cell == -1:
-                    print(".", end=" ")
-                else:
-                    print(cell, end=" ")
-            print("]")
-        print()
+        print(self.board)
     
     def _render_frame(self, selection=False):
         if self.window is None:
