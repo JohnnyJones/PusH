@@ -146,9 +146,22 @@ class DeepMctsAgent(ChineseCheckersAgent):
         board: Board = info["board"]
         return self._get_best_action(board, temperature)
     
+    def train_model(self, history):
+        pass
+
     def _get_best_action(self, board: Board, temperature) -> Action:
         actions, visits = self._mcts(board, 180)
-        action = self._decision(actions, visits, temperature)
+        try:
+            action = self._decision(actions, visits, temperature)
+        except Exception as e:
+            print("Game and agent state leading to error")
+            print("Board:")
+            print(board)
+            print("Actions")
+            print(actions)
+            print("Visits")
+            print(visits)
+            raise e
         return action
 
     def _mcts(self, board: Board, iterations: int) -> tuple[list[Action], list[int]]:
@@ -185,10 +198,7 @@ class DeepMctsAgent(ChineseCheckersAgent):
                 node.accumulated_value = +1
         else:
             # get priors and estimated value from nn
-            # if self.train:
-            #     value, prior = self.model(node.board.to_tensor())
-            # else:
-            with torch.no_grad():
+            with torch.inference_mode():
                 value, prior = self.model(node.board.to_tensor())
             node.accumulated_value = value.item()
 
@@ -202,6 +212,7 @@ class DeepMctsAgent(ChineseCheckersAgent):
                 new_node = MctsTreeNode(new_board)
                 new_node.prior_probability = prior[action.piece_id, action.position.x, action.position.y]
                 node.add_child(new_node, action)
+        node.visits += 1
 
     def _backup(self, leaf: MctsTreeNode, node: MctsTreeNode):
         if node is None:
@@ -229,7 +240,13 @@ class DeepMctsAgent(ChineseCheckersAgent):
         if temperature == 0.0:
             return actions[np.argmax(visits)]
         
+        # TODO: find out why visits sometimes are all zero
         probability_denominator = sum([visit_count ** (1 / temperature) for visit_count in visits])
+        if probability_denominator == 0:
+            if all([visit == 0 for visit in visits]):
+                raise RuntimeError(f"Visit counts cannot all be zero")
+            else:
+                raise RuntimeError(f"Some other problem occured causing probability denominator to sum to zero")
         probabilities = [visit ** (1 / temperature) / probability_denominator for visit in visits]
 
         return random.choices(actions, weights=probabilities, k=1)[0]
