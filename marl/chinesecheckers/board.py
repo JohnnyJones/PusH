@@ -37,7 +37,16 @@ class Board:
         return id_to_position
 
     def __repr__(self) -> str:
-        return str(self.board)
+        board_string = []
+        for row in self.board:
+            board_string.append("[ ")
+            for cell in row:
+                if cell == -1:
+                    board_string.append(". ")
+                else:
+                    board_string.append(str(cell) + " ")
+            board_string.append("]\n")
+        return "".join(board_string)
     
     def starting_positions(self, player_id):
         p0_starting_positions = [
