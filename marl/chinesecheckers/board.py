@@ -71,7 +71,7 @@ class Board:
         positions = []
         for x in range(len(self.board)):
             for y in range(len(self.board[x])):
-                if self.board[x][y] != -1:
+                if self.board[x][y] == -1:
                     positions.append(Position(x, y))
         return positions
 
@@ -83,7 +83,7 @@ class Board:
         if shuffle:
             for piece_id in range(6):
                 for player_id in range(2):
-                    self.add_piece(player_id, piece_id, random.choice(self.get_unoccupied_positions))
+                    self.add_piece(player_id, piece_id, random.choice(self.get_unoccupied_positions()))
         else:
             for player_id in range(2):
                 for i, position in enumerate(self.starting_positions(player_id)):
