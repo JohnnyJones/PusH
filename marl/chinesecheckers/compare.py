@@ -70,6 +70,8 @@ if __name__ == "__main__":
             agents = agents[::-1]
             agent_turns = agent_turns[::-1]
             agent_times = agent_times[::-1]
+        if args.render_mode is not None:
+            print([f"Agent {i}: {type(agent).__name__}" for i, agent in enumerate(agents)])
         try:
             winner = play(env, agents, agent_turns, agent_times)
             if winner != -1:
