@@ -2,6 +2,7 @@ import gymnasium as gym
 import random
 import time
 import numpy as np
+import torch
 
 from environment import ChineseCheckersEnv
 from data import Action, Position
@@ -50,7 +51,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     env = gym.make("ChineseCheckers-v0", render_mode=args.render)
-    agents: list[ChineseCheckersAgent] = [DeepMctsAgent(), DeterministicGreedyAgent()]
+    mcts_agent = DeepMctsAgent()
+    mcts_agent.model.load_state_dict(torch.load("./models/heuristic-trained-mcts-model-v0.pt"))
+    agents: list[ChineseCheckersAgent] = [mcts_agent, DeterministicGreedyAgent()]
     episodes = args.episodes
     winners = []
     errors = 0
