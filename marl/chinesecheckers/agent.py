@@ -47,16 +47,10 @@ class DeterministicGreedyAgent(ChineseCheckersAgent):
         if len(actions) == 0:
             raise ValueError("No valid actions available")
         heuristics = [self._heuristic(start, action.position, turn) for start, action in zip(starting_positions, actions)]
-        return self._get_best_action(actions, starting_positions, heuristics, turn)
+        return self._choose_action(actions, starting_positions, heuristics, turn)
     
-    def _get_best_action(self, actions: list[Action], starting_position: list[Position], heuristics: list[float], turn: int) -> Action:       
-        # join into a dataframe
-        distances = [self._distance_to_goal(turn, start) for start in starting_position]
-        df = pd.DataFrame({"action": actions, "start": starting_position, "heuristic": heuristics, "distance": distances})
-
-        # filter by the best heuristic
-        df = df.sort_values(by="heuristic", ascending=False)
-        df = df[df["heuristic"] == df["heuristic"].max()]
+    def _choose_action(self, actions: list[Action], starting_positions: list[Position], heuristics: list[float], turn: int) -> Action:       
+        df = self._get_best_actions(actions, starting_positions, heuristics, turn)
 
         # if there's only one action with the best heuristic, return it
         if len(df) == 1:
@@ -67,6 +61,17 @@ class DeterministicGreedyAgent(ChineseCheckersAgent):
         
         # sample from the best actions with the worst starting position
         return random.choice(df["action"].tolist())
+
+    def _get_best_actions(self, actions: list[Action], starting_positions: list[Position], heuristics: list[float], turn: int) -> pd.DataFrame:       
+        # join into a dataframe
+        distances = [self._distance_to_goal(turn, start) for start in starting_positions]
+        df = pd.DataFrame({"action": actions, "start": starting_positions, "heuristic": heuristics, "distance": distances})
+
+        # filter by the best heuristic
+        df = df.sort_values(by="heuristic", ascending=False)
+        df = df[df["heuristic"] == df["heuristic"].max()]
+
+        return df
 
     @staticmethod
     def _distance_to_goal(turn: int, position: Position):
@@ -87,12 +92,12 @@ class StochasticGreedyAgent(DeterministicGreedyAgent):
     def __init__(self) -> None:
         super(StochasticGreedyAgent, self).__init__()
 
-    def _get_best_action(self, actions: list[Action], starting_position: list[Position], heuristics: list[float], turn: int) -> Action:       
+    def _choose_action(self, actions: list[Action], starting_position: list[Position], heuristics: list[float], turn: int) -> Action:       
         normalized_heuristics = [heuristic * (heuristic > 0) for heuristic in heuristics]
         
         if sum(normalized_heuristics) == 0:
             # no positive heuristics, use the deterministic greedy agent
-            return super()._get_best_action(actions, starting_position, heuristics, turn)        
+            return super()._choose_action(actions, starting_position, heuristics, turn)        
         
         heuristic_sum = sum(normalized_heuristics)
         weights = [heuristic / heuristic_sum for heuristic in normalized_heuristics]
@@ -210,7 +215,7 @@ class DeepMctsAgent(ChineseCheckersAgent):
                 new_board: Board = node.board.copy()
                 new_board.move_piece(*action)
                 new_node = MctsTreeNode(new_board)
-                new_node.prior_probability = prior[action.piece_id, action.position.x, action.position.y]
+                new_node.prior_probability = prior[0][action.piece_id, action.position.x, action.position.y]
                 node.add_child(new_node, action)
         node.visits += 1
 
