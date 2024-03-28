@@ -134,22 +134,20 @@ class DeepMctsAgent(ChineseCheckersAgent):
         self.device = torch.device(device)
         self.model.to(device)
 
-        self._train = True
+        self.high_temperature = 1.2
+        self.low_temperature = 0.01
+        self.temperature = self.low_temperature
 
-    def train(self):
-        self._train = True
+    def set_temperature_high(self):
+        self.temperature = self.high_temperature
     
-    def eval(self):
-        self._train = False
+    def set_temperature_low(self):
+        self.temperature = self.low_temperature
 
     def act(self, observation, info) -> Action:
         super(DeepMctsAgent, self).act(observation, info)
-        if self._train:
-            temperature = 1.2
-        else:
-            temperature = 0.0
         board: Board = info["board"]
-        return self._get_best_action(board, temperature)
+        return self._get_best_action(board, self.temperature)
     
     def train_model(self, history):
         pass
