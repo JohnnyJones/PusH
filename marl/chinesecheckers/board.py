@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import random
 
 from data import Action, Position
 from collections import deque
@@ -66,20 +67,33 @@ class Board:
     def win_positions(self, player_id):
         return self.starting_positions(1 - player_id)
 
-    def reset(self):
+    def get_unoccupied_positions(self):
+        positions = []
+        for x in range(len(self.board)):
+            for y in range(len(self.board[x])):
+                if self.board[x][y] != -1:
+                    positions.append(Position(x, y))
+        return positions
+
+    def reset(self, shuffle=False):
         self.board = -np.ones((7, 7), dtype=np.int8) # 7 rows, 7 columns, output is player_id
         self.position_to_id = -np.ones((2, 7, 7), dtype=np.int8) # 2 player_ids, 7 rows, 7 columns, output is piece_id
         self.id_to_position = -np.ones((2, 6, 2), dtype=np.int8) # 2 player_ids, 6 piece_ids, 2 coordinates, output is (x, y)
 
-        for player_id in range(2):
-            for i, position in enumerate(self.starting_positions(player_id)):
-                self.add_piece(player_id, i, Position(*position))
-        
+        if shuffle:
+            for piece_id in range(6):
+                for player_id in range(2):
+                    self.add_piece(player_id, piece_id, random.choice(self.get_unoccupied_positions))
+        else:
+            for player_id in range(2):
+                for i, position in enumerate(self.starting_positions(player_id)):
+                    self.add_piece(player_id, i, Position(*position))
+            
         self.turn = 0
         self.history.clear()
         for _ in range(3):
             self.history.appendleft(self.position_to_id)
-    
+
     def copy(self):
         new_board = Board()
         new_board.board = self.board.copy()
