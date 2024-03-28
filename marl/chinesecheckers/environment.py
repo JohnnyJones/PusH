@@ -27,7 +27,7 @@ class ChineseCheckersEnv(gym.Env):
         "P5":         (255, 255, 0  ),
     }
 
-    def __init__(self, render_mode=None):
+    def __init__(self, render_mode=None, render_fps=16):
         self.window_size = 1024 # Size of the PyGame window
 
         # observation space is 2 players, 7x7 board
@@ -40,6 +40,7 @@ class ChineseCheckersEnv(gym.Env):
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
+        self.metadata["render_fps"] = render_fps
 
         self.window = None
         self.clock = None
@@ -170,9 +171,14 @@ class ChineseCheckersEnv(gym.Env):
             "board": self.board.copy(),
         }
 
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None, options: dict={}):
         super().reset(seed=seed)
-        self.board.reset(shuffle=options["shuffle_start"])
+        if options.get("shuffle_start", False):
+            self.board.reset(shuffle=True)
+        else:
+            self.board.reset(shuffle=False)
+        if options.get("start_state", None) is not None:
+            self.board = options["start_state"]
 
         observation = self._get_obs()
         info = self._get_info()
