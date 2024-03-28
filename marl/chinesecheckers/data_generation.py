@@ -16,9 +16,23 @@ from compare import take_random_action
 from board import Board
 from torch.utils.data import Dataset, DataLoader
 
-def game_generation(game_count, agents: list[ChineseCheckersAgent] = [DeterministicGreedyAgent(), DeterministicGreedyAgent()], random_turns=0, shuffle=False, as_list=True):
+class GameDataset(Dataset):
+    def __init__(self, data):
+        self.data = data
+
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        X, y_truth, y_value = self.data[idx]
+        return X, y_truth, y_value
+
+def game_generation(game_count, agents: list[ChineseCheckersAgent] = [DeterministicGreedyAgent(), DeterministicGreedyAgent()], 
+                    random_turns=3, random_move_rate=0.5, shuffle_rate=0.3, keep=0.05, as_list=True) -> list | GameDataset:
+    random_move_games = game_count * random_move_rate
+    shuffle_games = random_move_games + game_count * shuffle_rate
+    
     env = gym.make("ChineseCheckers-v0")
-    obs, info = env.reset()
     max_turns = 100
 
     # recording game states and ground truth
@@ -26,7 +40,12 @@ def game_generation(game_count, agents: list[ChineseCheckersAgent] = [Determinis
     policy_ground_truths = []
     values = []
 
-    for _ in tqdm(range(game_count), desc="Generating games"):        
+    for game in tqdm(range(game_count), desc="Generating games"):
+        if random_move_games < game < shuffle_games:
+            obs, info = env.reset(options={"shuffle_start": True})
+        else:
+            obs, info = env.reset()
+
         game_turn = 0
         game_states = []
         game_truths = []
@@ -41,7 +60,7 @@ def game_generation(game_count, agents: list[ChineseCheckersAgent] = [Determinis
             game_truths.append(truth)
             game_turns.append(info["turn"])
 
-            if game_turn < len(agents) * random_turns:
+            if game < random_move_games and game_turn < len(agents) * random_turns:
                 action = take_random_action(obs, info)
             else:
                 agent_turn = info["turn"]
@@ -61,10 +80,11 @@ def game_generation(game_count, agents: list[ChineseCheckersAgent] = [Determinis
             values.extend([-1 if winner == turn else 1 for turn in game_turns])
     
     data = list(zip(states, policy_ground_truths, values))
+    data = random.choices(data, k=int(keep*len(data)))
     if as_list:
         return data
     else:
-        raise NotImplementedError()
+        return GameDataset(data)
             
 
 def _get_best_actions(board: Board) -> list[Action]:
