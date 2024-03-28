@@ -172,7 +172,7 @@ class ChineseCheckersEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        self.board.reset()
+        self.board.reset(shuffle=options["shuffle_start"])
 
         observation = self._get_obs()
         info = self._get_info()
