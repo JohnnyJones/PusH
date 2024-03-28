@@ -39,8 +39,7 @@ class ValueHead(nn.Module):
     def forward(self, x: torch.Tensor):
         x = self.conv1(x)
         x = self.relu1(x)
-        # TODO: verify flatten works with batch
-        x = x.view(x.numel()) # fully flatten
+        x = x.view(-1, 5*5)
         x = self.fc1(x)
         x = self.relu2(x)
         x = self.fc2(x)
@@ -59,10 +58,9 @@ class PolicyHead(nn.Module):
         self.softmax1 = nn.Softmax(dim=0)
 
     def forward(self, x: torch.Tensor):
-        x = self.conv1(x)
+        x = self.conv1(x) # 16x5x5
         x = self.relu1(x)
-        # TODO: verify flatten works with batch
-        x = x.view(x.numel()) # fully flatten
+        x = x.view(-1, 5*5*16) # 1x400
         x = self.fc1(x)
         x = self.softmax1(x)
         return x
@@ -91,8 +89,8 @@ class DeepMctsModel(nn.Module):
 
     def forward(self, x: torch.Tensor):
         # using skip connections
-        x = self.conv1(x)
-        x = self.block1(x) + x
+        x = self.conv1(x)      # 64x5x5
+        x = self.block1(x) + x # 64x5x5
         x = self.block2(x) + x
         x = self.block3(x) + x
         x = self.block4(x) + x
@@ -100,9 +98,9 @@ class DeepMctsModel(nn.Module):
         x = self.block6(x) + x
         x = self.block7(x) + x
         x = self.block8(x) + x
-        x = self.block9(x) + x
-        value = self.value_head(x)
-        policy = self.policy_head(x)
-        policy = policy.view(6, 7, 7)
+        x = self.block9(x) + x # 64x5x5
+        value = self.value_head(x) # scalar
+        policy = self.policy_head(x) # 1x294
+        policy = policy.view(-1, 6, 7, 7)
         return value, policy
 
