@@ -39,19 +39,24 @@ def game_generation(game_count, agents: list[ChineseCheckersAgent] = [Determinis
     states = []
     policy_ground_truths = []
     values = []
-    actions = []
-
-    shuffle_start = False
+    actions = [] * game_count
+    start_states = []
 
     for game in tqdm(range(game_count), desc="Generating games"):
-        if random_move_games < game < shuffle_games:
+        if random_move_games <= game < shuffle_games:
             shuffle_start = True
+        else:
+            shuffle_start = False
         obs, info = env.reset(options={"shuffle_start": shuffle_start})
+
+        if replay:
+            start_states.append(info["board"].copy())
 
         game_turn = 0
         game_states = []
         game_truths = []
         game_turns = []
+        game_actions = []
         terminated = False
         while not terminated:
             game_states.append(info["board"].to_tensor())
@@ -69,12 +74,15 @@ def game_generation(game_count, agents: list[ChineseCheckersAgent] = [Determinis
                 action = agents[agent_turn].act(obs, info)
             # TODO: check for circular actions
             if replay:
-                actions.append(action)
+                game_actions.append(action)
             obs, reward, terminated, truncated, info = env.step(action)
             game_turn += 1
 
             if game_turn > max_turns:
                 break
+        
+        if replay:
+            actions.append(game_actions)
 
         if reward != 0:
             # game did not tie, we will use this training data
@@ -87,9 +95,9 @@ def game_generation(game_count, agents: list[ChineseCheckersAgent] = [Determinis
     data = random.choices(data, k=int(keep*len(data)))
     if replay:
         if as_list:
-            return data, replay
+            return data, list(zip(start_states, actions))
         else:
-            return GameDataset(data), replay
+            return GameDataset(data), list(zip(start_states, actions))
     else:
         if as_list:
             return data
