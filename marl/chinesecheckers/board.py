@@ -288,5 +288,14 @@ class Board:
         
         return positions
     
+    def get_position_by_id(self, player, piece_id):
+        x, y = self.id_to_position[player][piece_id]
+        return Position(x, y)
+
+    def get_id_by_position(self, position: Position):
+        p0 = self.position_to_id[0][position.x][position.y]
+        p1 = self.position_to_id[1][position.x][position.y]
+        return (0, p0) if p0 > p1 else (1, p1)
+
     def observation(self):
         return self.position_to_id
