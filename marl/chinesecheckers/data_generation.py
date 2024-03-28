@@ -28,7 +28,7 @@ class GameDataset(Dataset):
         return X, y_truth, y_value
 
 def game_generation(game_count, agents: list[ChineseCheckersAgent] = [DeterministicGreedyAgent(), DeterministicGreedyAgent()], 
-                    random_turns=3, random_move_rate=0.5, shuffle_rate=0.3, keep=0.05, as_list=True, replay=True) -> list | GameDataset:
+                    random_turns=3, random_move_rate=0.5, shuffle_rate=0.3, keep=0.05, flip_double=True, as_list=True, replay=True) -> list | GameDataset:
     random_move_games = game_count * random_move_rate
     shuffle_games = random_move_games + game_count * shuffle_rate
     
@@ -90,8 +90,10 @@ def game_generation(game_count, agents: list[ChineseCheckersAgent] = [Determinis
             states.extend(game_states)
             policy_ground_truths.extend(game_truths)
             values.extend([-1 if winner == turn else 1 for turn in game_turns])
-    
+
     data = list(zip(states, policy_ground_truths, values))
+    if flip_double:
+        data.extend(mirror_data(data))
     data = random.choices(data, k=int(keep*len(data)))
     if replay:
         if as_list:
@@ -103,7 +105,29 @@ def game_generation(game_count, agents: list[ChineseCheckersAgent] = [Determinis
             return data
         else:
             return GameDataset(data)
-            
+
+def mirror_data(data: list) -> list:
+    def mirror_state(state):
+        new_state = -torch.ones_like(state, dtype=torch.float32)
+        for x in range(len(state)):
+            for y in range(len(state[x])):
+                new_state[x][y] = state[y][x]
+        return state
+    
+    def mirror_truth(truth):
+        new_truth = -torch.ones_like(truth, dtype=torch.float32)
+        for x in range(len(truth)):
+            for y in range(len(truth[x])):
+                new_truth[x][y] = truth[y][x]
+        return truth
+    
+    new_data = []
+
+    for state, truth, value in data:
+        new_data.append((mirror_state(state), mirror_truth(truth), value))
+
+    return new_data
+
 def self_play(game_count, agents: list[DeepMctsAgent], random_turns=6, keep=0.5, temp_turns=10, temperature=2) -> tuple[GameDataset, DeepMctsAgent, float]:
     env = gym.make("ChineseCheckers-v0")
     max_turns = 100
