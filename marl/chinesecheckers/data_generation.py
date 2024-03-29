@@ -28,7 +28,7 @@ class GameDataset(Dataset):
         return X, y_truth, y_value
 
 def game_generation(game_count, agents: list[ChineseCheckersAgent] = [DeterministicGreedyAgent(), DeterministicGreedyAgent()], 
-                    random_turns=3, random_move_rate=0.5, shuffle_rate=0.3, keep=0.05, flip_double=True, as_list=True, replay=True) -> list | GameDataset:
+                    random_turns=3, random_move_rate=0.5, shuffle_rate=0.3, keep=0.05, flip_double=True, as_list=True, replay=False) -> list | GameDataset:
     random_move_games = game_count * random_move_rate
     shuffle_games = game_count * shuffle_rate
     
