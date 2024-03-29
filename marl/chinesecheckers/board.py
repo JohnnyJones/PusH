@@ -8,11 +8,11 @@ from collections import deque
 
 class Board: 
     # game board is 7x7 matrix (diamond-shaped board) with 2 players
-    def __init__(self, start=None):
+    def __init__(self, start: np.ndarray = None):
         self.turn = 0
         self.history = deque(maxlen=3)
-        if start:
-            self.position_to_id = start
+        if start is not None:
+            self.position_to_id = start.copy()
             self.board = self._position_matrix_to_board_matrix(start)
             self.id_to_position = self._position_matrix_to_id_matrix(start)
         else:
@@ -22,19 +22,20 @@ class Board:
     def _position_matrix_to_board_matrix(mat: np.ndarray):
         board = -np.ones((7, 7), dtype=np.int8)
         for i in range(mat.shape[0]):
-            sub_board = mat[i]
+            sub_board = mat[i].copy()
             sub_board[sub_board > -1] = i
             board = np.maximum(board, sub_board)
         return board
 
     @staticmethod
     def _position_matrix_to_id_matrix(mat: np.ndarray):
-        id_to_position = -np.ones((mat.shape[0], 6, 2), dtype=np.int8)
-        for i in range(mat.shape[0]):
-            for j in range(mat.shape[1]):
-                for k in range(mat.shape[2]):
-                    if mat[i, j, k] > -1:
-                        id_to_position[i, mat[i, j, k]] = (j, k)
+        id_to_position = -np.ones((2, 6, 2), dtype=np.int8)
+        for player_id in range(mat.shape[0]):
+            for x in range(mat.shape[1]):
+                for y in range(mat.shape[2]):
+                    piece_id = mat[player_id, x, y]
+                    if piece_id > -1:
+                        id_to_position[player_id, piece_id] = (x, y)
         return id_to_position
 
     def __repr__(self) -> str:
@@ -125,6 +126,24 @@ class Board:
         history = np.concatenate((history, np.ones((1, 7, 7), dtype=np.int8) * self.turn)).astype(dtype=np.float32, copy=False)
 
         return torch.from_numpy(history).detach()
+
+    def mirror(self):
+        new_position_to_id = -np.ones_like(self.position_to_id, dtype=np.int8)
+        for player_id in range(2):
+            for x in range(new_position_to_id.shape[1]):
+                for y in range(new_position_to_id.shape[2]):
+                    new_position_to_id[player_id, x, y] = self.position_to_id[player_id, 6-y, 6-x]
+        new_history = deque(maxlen=3)
+        for i in range(len(self.history)):
+            new_history.appendleft(-np.ones_like(self.history[i], dtype=np.int8))
+            for player_id in range(2):
+                for x in range(new_history[i].shape[1]):
+                    for y in range(new_history[i].shape[2]):
+                        new_history[i][player_id, x, y] = self.history[i][player_id, 6-y, 6-x]
+        new_board = Board(start=new_position_to_id)
+        new_board.history = new_history
+
+        return new_board
 
     def add_piece(self, player_id, piece_id, position: Position):
         self.board[position] = player_id
