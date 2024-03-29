@@ -19,6 +19,7 @@ class ChineseCheckersEnv(gym.Env):
         "BACKGROUND": (56,  30,  26 ),
         "EMPTY":      (81,  56,  46 ),
         "HIGHLIGHT":  (100, 100, 100),
+        "INVALID":    (255, 0,   0  ),
         "P0":         (0,   0,   0  ),
         "P1":         (255, 255, 255),
         "P2":         (255, 0,   0  ),
@@ -56,7 +57,7 @@ class ChineseCheckersEnv(gym.Env):
     def _render_terminal(self):
         print(self.board)
     
-    def _render_frame(self, selection=False):
+    def _render_frame(self, selection=False, invalid_action: Action = None):
         if self.window is None:
             pygame.init()
             pygame.display.init()
@@ -94,6 +95,7 @@ class ChineseCheckersEnv(gym.Env):
         # draw the pieces
         for x in range(7):
             for y in range(7):
+                player_id, piece_id = self.board.get_id_by_position(Position(x, y))
                 position = piece_position(x, y)
                 color = self.COLORS["EMPTY"]
                 width = piece_radius // 5
@@ -110,10 +112,10 @@ class ChineseCheckersEnv(gym.Env):
                     width
                 )
 
-                # draw the player id
+                # draw the piece id
                 if self.board.board[x, y] != -1:
                     font = pygame.font.Font(None, 36)
-                    text = font.render(str(self.board.board[x, y]), True, self.invert_color(color))
+                    text = font.render(str(piece_id), True, self.invert_color(color))
                     text_rect = text.get_rect(center=position)
                     self.window.blit(text, text_rect)
         
@@ -142,13 +144,49 @@ class ChineseCheckersEnv(gym.Env):
                         5
                     )
 
+        if invalid_action is not None:
+            piece_id, move_position = invalid_action
+            move_position = Position(*move_position)
+            position = Position(*self.board.id_to_position[self.board.turn, piece_id])
+            # highlight the selected piece
+            pygame.draw.circle(
+                self.window,
+                self.COLORS["INVALID"],
+                piece_position(*position),
+                piece_radius,
+                5
+            )
+            # highlight the invalid action
+            pygame.draw.circle(
+                self.window,
+                self.COLORS["INVALID"],
+                piece_position(*move_position),
+                piece_radius,
+                5
+            )
+        
+        # draw player names at top and bottom
+        font = pygame.font.Font(None, 72)
+        text = font.render(self.player_names[0], True, self.invert_color(self.COLORS["P0"]), self.COLORS["P0"])
+        text_rect = text.get_rect(center=(self.window_size // 4, self.window_size - self.window_size // 14))
+        self.window.blit(text, text_rect)
+        text = font.render(self.player_names[1], True, self.invert_color(self.COLORS["P1"]), self.COLORS["P1"])
+        text_rect = text.get_rect(center=(self.window_size // 4, self.window_size // 14))
+        self.window.blit(text, text_rect)
+
         # render the frame
         pygame.event.pump()
         pygame.display.update()
-        self.clock.tick(self.metadata["render_fps"])
+        if invalid_action is not None:
+            self.clock.tick(self.metadata["render_fps"] / 10)
+        else:
+            self.clock.tick(self.metadata["render_fps"])
     
     def _render_selection(self):
         self._render_frame(selection=True)
+
+    def _render_invalid(self, action):
+        self._render_frame(invalid_action=action)
     
     def invert_color(self, color):
         return tuple(255 - c for c in color)
@@ -179,6 +217,10 @@ class ChineseCheckersEnv(gym.Env):
             self.board.reset(shuffle=False)
         if options.get("start_state", None) is not None:
             self.board = options["start_state"]
+        if options.get("player_names", None) is not None:
+            self.player_names = options["player_names"]
+        else:
+            self.player_names = [f"Player {i}" for i in range(2)]
 
         observation = self._get_obs()
         info = self._get_info()
@@ -189,7 +231,9 @@ class ChineseCheckersEnv(gym.Env):
     
     def step(self, action: Action):
         if action not in self.board.get_valid_actions_list():
-            raise ValueError(f"Invalid action: {action}")
+            if self.render_mode == "human":
+                self._render_invalid(action)
+            raise ValueError(f"Invalid action: {action} by player {self.board.turn}")
         self.last_action = action
         if self.render_mode == "human":
             self._render_selection()
