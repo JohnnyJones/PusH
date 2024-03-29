@@ -30,7 +30,7 @@ class GameDataset(Dataset):
 def game_generation(game_count, agents: list[ChineseCheckersAgent] = [DeterministicGreedyAgent(), DeterministicGreedyAgent()], 
                     random_turns=3, random_move_rate=0.5, shuffle_rate=0.3, keep=0.05, flip_double=True, as_list=True, replay=True) -> list | GameDataset:
     random_move_games = game_count * random_move_rate
-    shuffle_games = random_move_games + game_count * shuffle_rate
+    shuffle_games = game_count * shuffle_rate
     
     env = gym.make("ChineseCheckers-v0")
     max_turns = 100
@@ -43,10 +43,15 @@ def game_generation(game_count, agents: list[ChineseCheckersAgent] = [Determinis
     start_states = []
 
     for game in tqdm(range(game_count), desc="Generating games"):
-        if random_move_games <= game < shuffle_games:
+        if game < random_move_games:
+            shuffle_start = False
+            random_move_game = True
+        elif game < (shuffle_games + random_move_games):
             shuffle_start = True
+            random_move_game = False
         else:
             shuffle_start = False
+            random_move_game = False
         obs, info = env.reset(options={"shuffle_start": shuffle_start})
 
         if replay:
@@ -67,7 +72,7 @@ def game_generation(game_count, agents: list[ChineseCheckersAgent] = [Determinis
             game_truths.append(truth)
             game_turns.append(info["turn"])
 
-            if not shuffle_start and game < random_move_games and game_turn < len(agents) * random_turns:
+            if random_move_game and game_turn < len(agents) * random_turns:
                 action = take_random_action(obs, info)
             else:
                 agent_turn = info["turn"]
