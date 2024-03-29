@@ -96,10 +96,13 @@ def game_generation(game_count, agents: list[ChineseCheckersAgent] = [Determinis
         data.extend(mirror_data(data))
     data = random.choices(data, k=int(keep*len(data)))
     if replay:
+        replays = list(zip(start_states, actions))
+        if flip_double:
+            replays.extend([mirror_replay(replay) for replay in replays])
         if as_list:
-            return data, list(zip(start_states, actions))
+            return data, replays
         else:
-            return GameDataset(data), list(zip(start_states, actions))
+            return GameDataset(data), replays
     else:
         if as_list:
             return data
@@ -111,14 +114,15 @@ def mirror_data(data: list) -> list:
         new_state = -torch.ones_like(state, dtype=torch.float32)
         for x in range(len(state)):
             for y in range(len(state[x])):
-                new_state[x][y] = state[y][x]
+                new_state[x][y] = state[6-y][6-x]
         return state
     
     def mirror_truth(truth):
         new_truth = -torch.ones_like(truth, dtype=torch.float32)
-        for x in range(len(truth)):
-            for y in range(len(truth[x])):
-                new_truth[x][y] = truth[y][x]
+        for layer in range(len(truth)):
+            for x in range(len(truth[layer])):
+                for y in range(len(truth[layer][x])):
+                    new_truth[layer][x][y] = truth[layer][6-y][6-x]
         return truth
     
     new_data = []
@@ -127,6 +131,18 @@ def mirror_data(data: list) -> list:
         new_data.append((mirror_state(state), mirror_truth(truth), value))
 
     return new_data
+
+def mirror_replay(replay: tuple[Board, list[Action]]) -> tuple:
+    start_state, actions = replay
+    new_state = start_state.mirror()
+
+    new_actions = []
+    for action in actions:
+        new_action = Action(piece_id=action.piece_id, position=Position(x=6-action.position.y, y=6-action.position.x))
+        new_actions.append(new_action)
+
+    return new_state, new_actions
+    
 
 def self_play(game_count, agents: list[DeepMctsAgent], random_turns=6, keep=0.5, temp_turns=10, temperature=2) -> tuple[GameDataset, DeepMctsAgent, float]:
     env = gym.make("ChineseCheckers-v0")
