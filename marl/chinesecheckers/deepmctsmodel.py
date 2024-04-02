@@ -44,6 +44,7 @@ class ValueHead(nn.Module):
         x = self.relu2(x)
         x = self.fc2(x)
         x = self.tanh1(x)
+        x = x.view(-1)
         return x
 
 class PolicyHead(nn.Module):
@@ -63,6 +64,7 @@ class PolicyHead(nn.Module):
         x = x.view(-1, 5*5*16) # 1x400
         x = self.fc1(x)
         x = self.softmax1(x)
+        x = x.view(-1, 6, 7, 7)
         return x
 
 class DeepMctsModel(nn.Module):
@@ -101,6 +103,5 @@ class DeepMctsModel(nn.Module):
         x = self.block9(x) + x # 64x5x5
         value = self.value_head(x) # scalar
         policy = self.policy_head(x) # 1x294
-        policy = policy.view(-1, 6, 7, 7)
         return value, policy
 
